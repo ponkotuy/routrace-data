@@ -1,0 +1,19 @@
+[project]
+name = "routrace-data"
+version = "1.0.0"
+description = "Road map data generator for routrace"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28.0",
+    "shapely>=2.0.0",
+    "geojson>=3.0.0",
+    "tqdm>=4.65.0",
+]
+
+[dependency-groups]
+dev = ["poethepoet>=0.40.0"]
+
+[tool.poe.tasks]
+generate = "python scripts/main.py --verbose"
+coastline = "python scripts/main.py --coastline-only --verbose"
+highways = "python scripts/main.py --highways-only --verbose"
