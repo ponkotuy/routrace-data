@@ -7,8 +7,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import DATA_DIR
+from config import DATA_DIR, HIGHWAYS_DIR, HIGHWAYS
 from coastline import fetch_coastline, save_coastline
+from highway import extract_highway, save_highway
+from osm_downloader import download_japan_osm
+from osm_parser import parse_highways
 
 # ロギング設定
 logging.basicConfig(
@@ -96,8 +99,7 @@ def generate_all(output_dir: Path) -> None:
     """
     generate_metadata(output_dir)
     generate_coastline(output_dir)
-    # TODO: generate_highways実装後に追加
-    # generate_highways(output_dir)
+    generate_highways(output_dir)
 
 
 def generate_highways(
@@ -105,8 +107,46 @@ def generate_highways(
     highway_ids: list[str] | None = None,
 ) -> None:
     """高速道路データを生成"""
-    # TODO: 実装
-    logger.warning("高速道路データ生成は未実装です")
+    data_dir = output_dir / DATA_DIR
+    highways_dir = data_dir / HIGHWAYS_DIR
+
+    # 対象の高速道路を絞り込み
+    if highway_ids:
+        targets = [h for h in HIGHWAYS if h["id"] in highway_ids]
+        if not targets:
+            logger.warning(f"指定されたIDの高速道路が見つかりません: {highway_ids}")
+            return
+    else:
+        targets = HIGHWAYS
+
+    logger.info(f"高速道路データ生成: {len(targets)}路線")
+
+    # OSMデータをダウンロード（キャッシュがあればスキップ）
+    pbf_path = download_japan_osm()
+
+    # PBFから全高速道路データを抽出
+    all_ways = parse_highways(pbf_path)
+
+    highways_info = []
+
+    for highway_config in targets:
+        try:
+            geojson = extract_highway(all_ways, highway_config)
+            file_size = save_highway(highway_config["id"], geojson, highways_dir)
+
+            highways_info.append({
+                "id": highway_config["id"],
+                "name": highway_config["name"],
+                "nameEn": highway_config["name_en"],
+                "color": highway_config["color"],
+                "fileSize": file_size,
+                "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            })
+        except Exception as e:
+            logger.error(f"高速道路データ抽出エラー: {highway_config['name']} - {e}")
+
+    # index.json生成
+    generate_index(output_dir, highways_info)
 
 
 def generate_coastline(output_dir: Path) -> None:
@@ -142,8 +182,20 @@ def generate_metadata(output_dir: Path) -> None:
 
 def generate_index(output_dir: Path, highways_info: list[dict]) -> None:
     """data/highways/index.jsonを生成"""
-    # TODO: 実装
-    pass
+    data_dir = output_dir / DATA_DIR
+    highways_dir = data_dir / HIGHWAYS_DIR
+
+    index = {
+        "highways": highways_info,
+    }
+
+    highways_dir.mkdir(parents=True, exist_ok=True)
+    output_path = highways_dir / "index.json"
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
+
+    logger.info(f"保存: {output_path}")
 
 
 if __name__ == "__main__":

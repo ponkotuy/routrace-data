@@ -29,6 +29,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Cache OSM data
+        uses: actions/cache@v4
+        with:
+          path: cache/japan-latest.osm.pbf
+          key: osm-japan-pbf
+
       - name: Generate data
         run: uv run poe generate
 

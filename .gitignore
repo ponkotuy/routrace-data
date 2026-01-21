@@ -1,6 +1,9 @@
 # Generated data
 data/
 
+# OSM cache
+cache/
+
 # Python
 __pycache__/
 *.py[cod]
