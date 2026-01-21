@@ -75,7 +75,7 @@ def filter_by_name(ways: list[dict], query_name: str) -> list[dict]:
 
     Args:
         ways: 高速道路wayのリスト
-        query_name: 検索する名前（部分一致）
+        query_name: 検索する名前（先頭一致）
 
     Returns:
         フィルタリングされたwayのリスト
@@ -84,7 +84,7 @@ def filter_by_name(ways: list[dict], query_name: str) -> list[dict]:
 
     for way in ways:
         name = way["tags"].get("name", "")
-        if query_name in name:
+        if name.startswith(query_name):
             filtered.append(way)
 
     return filtered
