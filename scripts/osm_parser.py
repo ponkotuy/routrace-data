@@ -1,21 +1,48 @@
 """OSMデータパーサー"""
 
 import logging
+import re
 from pathlib import Path
 
 import osmium
 
 logger = logging.getLogger(__name__)
 
+# 高速道路として認識する名前パターン
+HIGHWAY_PATTERNS = ['高速', '自動車道']
 
-class AllRelationsCollector(osmium.SimpleHandler):
-    """全高速道路のrelationからway IDを収集するハンドラー"""
+# 除外パターン（高架橋、入口、出口などは除外）
+EXCLUDE_PATTERNS = ['高架橋', '入口', '出口', '新設工事']
 
-    def __init__(self, query_names: list[str]):
+
+class HighwayDiscoverer(osmium.SimpleHandler):
+    """高速道路のrelationを自動検出するハンドラー"""
+
+    def __init__(self):
         super().__init__()
-        self.query_names = query_names
-        # query_name -> set of way IDs
-        self.way_ids_by_query: dict[str, set[int]] = {name: set() for name in query_names}
+        # 基本名 -> set of way IDs
+        self.way_ids_by_name: dict[str, set[int]] = {}
+        # 基本名 -> relation情報（name_en, ref等）
+        self.highway_info: dict[str, dict] = {}
+
+    def _extract_base_name(self, name: str) -> str | None:
+        """名前から基本名を抽出（括弧や方向を除去）"""
+        # 除外パターンをチェック
+        for pattern in EXCLUDE_PATTERNS:
+            if pattern in name:
+                return None
+
+        # 高速道路パターンをチェック
+        if not any(p in name for p in HIGHWAY_PATTERNS):
+            return None
+
+        # 括弧以降を除去
+        base_name = re.sub(r'[（(].*$', '', name)
+        # 方向を除去
+        base_name = re.sub(r'(上り|下り|内回り|外回り)$', '', base_name)
+        base_name = base_name.strip()
+
+        return base_name if base_name else None
 
     def relation(self, r):
         tags = dict(r.tags)
@@ -24,17 +51,34 @@ class AllRelationsCollector(osmium.SimpleHandler):
         if tags.get("route") != "road":
             return
 
-        # highway:name または name を取得
-        highway_name = tags.get("highway:name", "")
+        # 名前を取得
         name = tags.get("name", "")
+        if not name:
+            return
 
-        # どのquery_nameにマッチするか確認
-        for query_name in self.query_names:
-            if highway_name.startswith(query_name) or name.startswith(query_name):
-                # メンバーのway IDを収集
-                for member in r.members:
-                    if member.type == "w":
-                        self.way_ids_by_query[query_name].add(member.ref)
+        # 基本名を抽出
+        base_name = self._extract_base_name(name)
+        if not base_name:
+            return
+
+        # way IDを収集
+        if base_name not in self.way_ids_by_name:
+            self.way_ids_by_name[base_name] = set()
+            self.highway_info[base_name] = {
+                "name": base_name,
+                "name_en": tags.get("name:en", ""),
+                "ref": tags.get("ref", ""),
+            }
+
+        for member in r.members:
+            if member.type == "w":
+                self.way_ids_by_name[base_name].add(member.ref)
+
+        # 英語名やrefが空なら更新
+        if not self.highway_info[base_name]["name_en"] and tags.get("name:en"):
+            self.highway_info[base_name]["name_en"] = tags.get("name:en", "")
+        if not self.highway_info[base_name]["ref"] and tags.get("ref"):
+            self.highway_info[base_name]["ref"] = tags.get("ref", "")
 
 
 class BulkWayCollector(osmium.SimpleHandler):
@@ -72,29 +116,36 @@ class BulkWayCollector(osmium.SimpleHandler):
         }
 
 
-def collect_all_highway_way_ids(
-    pbf_path: Path,
-    query_names: list[str],
-) -> dict[str, set[int]]:
+def discover_highways(pbf_path: Path) -> tuple[list[dict], dict[str, set[int]]]:
     """
-    全高速道路のway IDを一括収集
+    PBFから高速道路を自動検出
 
     Args:
         pbf_path: フィルタリング済みPBFファイルパス
-        query_names: 検索する高速道路名のリスト
 
     Returns:
-        query_name -> way IDのセット のマッピング
+        (高速道路情報のリスト, 名前 -> way IDセットのマッピング)
     """
-    logger.info(f"全高速道路のrelationを収集中... ({len(query_names)}路線)")
+    logger.info("高速道路を自動検出中...")
 
-    handler = AllRelationsCollector(query_names)
+    handler = HighwayDiscoverer()
     handler.apply_file(str(pbf_path))
 
-    total_ways = sum(len(ids) for ids in handler.way_ids_by_query.values())
-    logger.info(f"relation収集完了: 合計 {total_ways} ways")
+    # 高速道路情報をリストに変換
+    highways = []
+    for name, info in sorted(handler.highway_info.items()):
+        way_count = len(handler.way_ids_by_name[name])
+        highways.append({
+            "name": info["name"],
+            "name_en": info["name_en"],
+            "ref": info["ref"],
+            "way_count": way_count,
+        })
 
-    return handler.way_ids_by_query
+    total_ways = sum(len(ids) for ids in handler.way_ids_by_name.values())
+    logger.info(f"検出完了: {len(highways)}路線, 合計 {total_ways} ways")
+
+    return highways, handler.way_ids_by_name
 
 
 def extract_all_ways(
@@ -105,7 +156,7 @@ def extract_all_ways(
     指定された全way IDのwayを一括抽出
 
     Args:
-        pbf_path: PBFファイルパス（座標埋め込み済み）
+        pbf_path: PBFファイルパス
         all_way_ids: 抽出するway IDのセット
 
     Returns:

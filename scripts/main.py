@@ -7,12 +7,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import DATA_DIR, HIGHWAYS_DIR, HIGHWAYS
+from config import DATA_DIR, HIGHWAYS_DIR
 from coastline import fetch_coastline, save_coastline
 from highway import extract_highway, save_highway
 from osm_downloader import download_japan_osm, filter_highways_pbf
 from osm_parser import (
-    collect_all_highway_way_ids,
+    discover_highways,
     extract_all_ways,
     get_ways_for_highway,
 )
@@ -32,7 +32,7 @@ def main():
         --output-dir: 出力ベースディレクトリ（デフォルト: リポジトリルート）
         --highways-only: 高速道路のみ生成
         --coastline-only: 海岸線のみ生成
-        --highway-id: 特定の高速道路のみ生成（複数指定可）
+        --highway-name: 特定の高速道路のみ生成（複数指定可、部分一致）
         --verbose: 詳細ログ出力
     """
     parser = argparse.ArgumentParser(
@@ -55,10 +55,10 @@ def main():
         help="海岸線のみ生成",
     )
     parser.add_argument(
-        "--highway-id",
+        "--highway-name",
         action="append",
-        dest="highway_ids",
-        help="特定の高速道路のみ生成（複数指定可）",
+        dest="highway_names",
+        help="特定の高速道路のみ生成（複数指定可、部分一致）",
     )
     parser.add_argument(
         "--verbose",
@@ -81,7 +81,7 @@ def main():
         if args.coastline_only:
             generate_coastline(output_dir)
         elif args.highways_only:
-            generate_highways(output_dir, args.highway_ids)
+            generate_highways(output_dir, args.highway_names)
         else:
             generate_all(output_dir)
 
@@ -108,22 +108,11 @@ def generate_all(output_dir: Path) -> None:
 
 def generate_highways(
     output_dir: Path,
-    highway_ids: list[str] | None = None,
+    highway_names: list[str] | None = None,
 ) -> None:
     """高速道路データを生成"""
     data_dir = output_dir / DATA_DIR
     highways_dir = data_dir / HIGHWAYS_DIR
-
-    # 対象の高速道路を絞り込み
-    if highway_ids:
-        targets = [h for h in HIGHWAYS if h["id"] in highway_ids]
-        if not targets:
-            logger.warning(f"指定されたIDの高速道路が見つかりません: {highway_ids}")
-            return
-    else:
-        targets = HIGHWAYS
-
-    logger.info(f"高速道路データ生成: {len(targets)}路線")
 
     # OSMデータをダウンロード（キャッシュがあればスキップ）
     pbf_path = download_japan_osm()
@@ -131,13 +120,24 @@ def generate_highways(
     # osmiumで事前フィルター（高速化）
     filtered_pbf_path = filter_highways_pbf(pbf_path)
 
-    # 全高速道路のway IDを一括収集（フィルタリング済みPBFから、高速）
-    query_names = [h["query_name"] for h in targets]
-    way_ids_by_query = collect_all_highway_way_ids(filtered_pbf_path, query_names)
+    # 高速道路を自動検出
+    discovered, way_ids_by_name = discover_highways(filtered_pbf_path)
+
+    # 対象の高速道路を絞り込み
+    if highway_names:
+        targets = [h for h in discovered if any(n in h["name"] for n in highway_names)]
+        if not targets:
+            logger.warning(f"指定された名前の高速道路が見つかりません: {highway_names}")
+            return
+    else:
+        targets = discovered
+
+    logger.info(f"高速道路データ生成: {len(targets)}路線")
 
     # 全way IDを統合
     all_way_ids: set[int] = set()
-    for way_ids in way_ids_by_query.values():
+    for h in targets:
+        way_ids = way_ids_by_name.get(h["name"], set())
         all_way_ids.update(way_ids)
 
     # 全wayを一括抽出（元のPBFから、ノード座標を含む）
@@ -145,29 +145,29 @@ def generate_highways(
 
     highways_info = []
 
-    for highway_config in targets:
+    for highway_info in targets:
         try:
-            query_name = highway_config["query_name"]
-            way_ids = way_ids_by_query[query_name]
+            name = highway_info["name"]
+            way_ids = way_ids_by_name.get(name, set())
 
             # メモリ内のwayデータから該当するものを取得
             ways = get_ways_for_highway(ways_by_id, way_ids)
 
-            logger.debug(f"{highway_config['name']}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
+            logger.debug(f"{name}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
 
-            geojson = extract_highway(filtered_pbf_path, highway_config, ways)
-            file_size = save_highway(highway_config["id"], geojson, highways_dir)
+            geojson = extract_highway(highway_info, ways)
+            file_size = save_highway(name, geojson, highways_dir)
 
             highways_info.append({
-                "id": highway_config["id"],
-                "name": highway_config["name"],
-                "nameEn": highway_config["name_en"],
-                "color": highway_config["color"],
+                "id": name,
+                "name": name,
+                "nameEn": highway_info.get("name_en", ""),
+                "ref": highway_info.get("ref", ""),
                 "fileSize": file_size,
                 "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             })
         except Exception as e:
-            logger.error(f"高速道路データ抽出エラー: {highway_config['name']} - {e}")
+            logger.error(f"高速道路データ抽出エラー: {name} - {e}")
 
     # index.json生成
     generate_index(output_dir, highways_info)

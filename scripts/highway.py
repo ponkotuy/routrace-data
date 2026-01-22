@@ -11,19 +11,18 @@ from config import SIMPLIFY_TOLERANCE
 logger = logging.getLogger(__name__)
 
 
-def extract_highway(pbf_path, highway_config: dict, ways: list[dict]) -> dict:
+def extract_highway(highway_info: dict, ways: list[dict]) -> dict:
     """
     指定された路線のデータを抽出
 
     Args:
-        pbf_path: PBFファイルパス（未使用、互換性のため残す）
-        highway_config: config.pyのHIGHWAYS要素
+        highway_info: 高速道路情報 {"name": str, "name_en": str, "ref": str}
         ways: 抽出済みのwayリスト
 
     Returns:
         GeoJSON FeatureCollection (dict)
     """
-    name = highway_config["name"]
+    name = highway_info["name"]
 
     logger.info(f"高速道路データ変換中: {name}")
 
@@ -45,20 +44,20 @@ def extract_highway(pbf_path, highway_config: dict, ways: list[dict]) -> dict:
 
     # プロパティを設定
     simplified["properties"] = {
-        "id": highway_config["id"],
         "name": name,
-        "nameEn": highway_config["name_en"],
+        "nameEn": highway_info.get("name_en", ""),
+        "ref": highway_info.get("ref", ""),
     }
 
     return simplified
 
 
-def save_highway(highway_id: str, geojson: dict, output_dir: Path) -> int:
+def save_highway(name: str, geojson: dict, output_dir: Path) -> int:
     """
     高速道路GeoJSONをファイルに保存
 
     Args:
-        highway_id: 高速道路ID（例: "tomei"）
+        name: 高速道路名（ファイル名として使用）
         geojson: GeoJSON FeatureCollection
         output_dir: 出力ディレクトリ (data/highways/)
 
@@ -66,7 +65,7 @@ def save_highway(highway_id: str, geojson: dict, output_dir: Path) -> int:
         保存したファイルのバイト数
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{highway_id}.json"
+    output_path = output_dir / f"{name}.json"
 
     json_str = json.dumps(geojson, ensure_ascii=False, separators=(",", ":"))
 
