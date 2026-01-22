@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install osmium-tool
+        run: sudo apt-get update && sudo apt-get install -y osmium-tool
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
@@ -32,8 +35,10 @@ jobs:
       - name: Cache OSM data
         uses: actions/cache@v4
         with:
-          path: cache/japan-latest.osm.pbf
-          key: osm-japan-pbf
+          path: |
+            cache/japan-latest.osm.pbf
+            cache/japan-highways.osm.pbf
+          key: osm-japan-pbf-v2
 
       - name: Generate data
         run: uv run poe generate

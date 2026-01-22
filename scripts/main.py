@@ -10,7 +10,7 @@ from pathlib import Path
 from config import DATA_DIR, HIGHWAYS_DIR, HIGHWAYS
 from coastline import fetch_coastline, save_coastline
 from highway import extract_highway, save_highway
-from osm_downloader import download_japan_osm
+from osm_downloader import download_japan_osm, filter_highways_pbf
 from osm_parser import parse_highways
 
 # ロギング設定
@@ -124,8 +124,11 @@ def generate_highways(
     # OSMデータをダウンロード（キャッシュがあればスキップ）
     pbf_path = download_japan_osm()
 
+    # osmiumで事前フィルター（高速化）
+    filtered_pbf_path = filter_highways_pbf(pbf_path)
+
     # PBFから全高速道路データを抽出
-    all_ways = parse_highways(pbf_path)
+    all_ways = parse_highways(filtered_pbf_path)
 
     highways_info = []
 
