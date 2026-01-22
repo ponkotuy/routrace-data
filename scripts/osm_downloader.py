@@ -76,7 +76,7 @@ def filter_highways_pbf(
     force: bool = False,
 ) -> Path:
     """
-    osmiumでPBFから高速道路データのみを抽出
+    osmiumでPBFから高速道路のrelation/wayのみを抽出（relation収集用）
 
     Args:
         input_pbf: 入力PBFファイルパス
@@ -84,7 +84,7 @@ def filter_highways_pbf(
         force: 既存ファイルがあっても再生成
 
     Returns:
-        フィルタリング済みPBFファイルのパス
+        フィルタリング済みPBFファイルのパス（ノードは含まない）
     """
     output_path = cache_dir / "japan-highways.osm.pbf"
 
@@ -95,25 +95,22 @@ def filter_highways_pbf(
             logger.info(f"フィルター済みキャッシュ: {output_path} ({size_mb:.1f} MB)")
             return output_path
 
-    logger.info("osmiumで高速道路データを事前抽出中...")
+    logger.info("osmiumで高速道路relation/wayを抽出中...")
 
     cmd = [
         "osmium",
         "tags-filter",
         str(input_pbf),
+        "r/route=road",
         "w/highway=motorway,motorway_link",
+        "-R",  # relationのメンバーも含める
         "-o",
         str(output_path),
         "--overwrite",
     ]
 
     try:
-        result = subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError:
         raise RuntimeError(
             "osmiumコマンドが見つかりません。osmium-toolをインストールしてください。\n"

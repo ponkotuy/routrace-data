@@ -4,35 +4,31 @@ import json
 import logging
 from pathlib import Path
 
-from osm_parser import filter_by_name, ways_to_geojson
+from osm_parser import ways_to_geojson
 from simplify import simplify_geojson, get_coordinate_count
 from config import SIMPLIFY_TOLERANCE
 
 logger = logging.getLogger(__name__)
 
 
-def extract_highway(all_ways: list[dict], highway_config: dict) -> dict:
+def extract_highway(pbf_path, highway_config: dict, ways: list[dict]) -> dict:
     """
-    全高速道路データから指定された路線を抽出
+    指定された路線のデータを抽出
 
     Args:
-        all_ways: 全高速道路wayのリスト
+        pbf_path: PBFファイルパス（未使用、互換性のため残す）
         highway_config: config.pyのHIGHWAYS要素
+        ways: 抽出済みのwayリスト
 
     Returns:
         GeoJSON FeatureCollection (dict)
     """
     name = highway_config["name"]
-    highway_id = highway_config["id"]
-    query_name = highway_config["query_name"]
 
-    logger.info(f"高速道路データ抽出中: {name}")
-
-    # 名前でフィルタリング
-    filtered_ways = filter_by_name(all_ways, query_name)
+    logger.info(f"高速道路データ変換中: {name}")
 
     # GeoJSONに変換
-    geojson = ways_to_geojson(filtered_ways)
+    geojson = ways_to_geojson(ways)
 
     feature_count = len(geojson.get("features", []))
     logger.info(f"高速道路データ抽出完了: {name} ({feature_count} features)")
@@ -49,7 +45,7 @@ def extract_highway(all_ways: list[dict], highway_config: dict) -> dict:
 
     # プロパティを設定
     simplified["properties"] = {
-        "id": highway_id,
+        "id": highway_config["id"],
         "name": name,
         "nameEn": highway_config["name_en"],
     }

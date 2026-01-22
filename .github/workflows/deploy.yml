@@ -38,7 +38,7 @@ jobs:
           path: |
             cache/japan-latest.osm.pbf
             cache/japan-highways.osm.pbf
-          key: osm-japan-pbf-v2
+          key: osm-japan-pbf-v3
 
       - name: Generate data
         run: uv run poe generate

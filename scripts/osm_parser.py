@@ -8,20 +8,49 @@ import osmium
 logger = logging.getLogger(__name__)
 
 
-class HighwayHandler(osmium.SimpleHandler):
-    """高速道路データを抽出するハンドラー"""
+class AllRelationsCollector(osmium.SimpleHandler):
+    """全高速道路のrelationからway IDを収集するハンドラー"""
 
-    def __init__(self):
+    def __init__(self, query_names: list[str]):
         super().__init__()
-        self.ways = []
+        self.query_names = query_names
+        # query_name -> set of way IDs
+        self.way_ids_by_query: dict[str, set[int]] = {name: set() for name in query_names}
+
+    def relation(self, r):
+        tags = dict(r.tags)
+
+        # route=road のrelationのみ対象
+        if tags.get("route") != "road":
+            return
+
+        # highway:name または name を取得
+        highway_name = tags.get("highway:name", "")
+        name = tags.get("name", "")
+
+        # どのquery_nameにマッチするか確認
+        for query_name in self.query_names:
+            if highway_name.startswith(query_name) or name.startswith(query_name):
+                # メンバーのway IDを収集
+                for member in r.members:
+                    if member.type == "w":
+                        self.way_ids_by_query[query_name].add(member.ref)
+
+
+class BulkWayCollector(osmium.SimpleHandler):
+    """指定された全way IDのwayデータを一括収集するハンドラー"""
+
+    def __init__(self, all_way_ids: set[int]):
+        super().__init__()
+        self.all_way_ids = all_way_ids
+        # way_id -> way data
+        self.ways_by_id: dict[int, dict] = {}
 
     def way(self, w):
-        tags = dict(w.tags)
-        highway_type = tags.get("highway")
-
-        # motorway または motorway_link のみ抽出
-        if highway_type not in ("motorway", "motorway_link"):
+        if w.id not in self.all_way_ids:
             return
+
+        tags = dict(w.tags)
 
         # ノード座標を取得
         try:
@@ -36,58 +65,81 @@ class HighwayHandler(osmium.SimpleHandler):
         if len(coordinates) < 2:
             return
 
-        self.ways.append({
+        self.ways_by_id[w.id] = {
             "id": w.id,
             "tags": tags,
             "coordinates": coordinates,
-        })
+        }
 
 
-def parse_highways(pbf_path: Path) -> list[dict]:
+def collect_all_highway_way_ids(
+    pbf_path: Path,
+    query_names: list[str],
+) -> dict[str, set[int]]:
     """
-    PBFファイルから高速道路データを抽出
+    全高速道路のway IDを一括収集
 
     Args:
-        pbf_path: PBFファイルパス
+        pbf_path: フィルタリング済みPBFファイルパス
+        query_names: 検索する高速道路名のリスト
 
     Returns:
-        高速道路wayのリスト
+        query_name -> way IDのセット のマッピング
     """
-    logger.info(f"OSMデータ解析中: {pbf_path}")
+    logger.info(f"全高速道路のrelationを収集中... ({len(query_names)}路線)")
 
-    handler = HighwayHandler()
+    handler = AllRelationsCollector(query_names)
+    handler.apply_file(str(pbf_path))
 
-    # NodeLocationsForWaysを使用してノード座標を取得可能にする
+    total_ways = sum(len(ids) for ids in handler.way_ids_by_query.values())
+    logger.info(f"relation収集完了: 合計 {total_ways} ways")
+
+    return handler.way_ids_by_query
+
+
+def extract_all_ways(
+    pbf_path: Path,
+    all_way_ids: set[int],
+) -> dict[int, dict]:
+    """
+    指定された全way IDのwayを一括抽出
+
+    Args:
+        pbf_path: PBFファイルパス（座標埋め込み済み）
+        all_way_ids: 抽出するway IDのセット
+
+    Returns:
+        way_id -> way data のマッピング
+    """
+    logger.info(f"wayデータを一括抽出中... ({len(all_way_ids)} ways)")
+
+    handler = BulkWayCollector(all_way_ids)
     handler.apply_file(
         str(pbf_path),
         locations=True,
         idx="flex_mem",
     )
 
-    logger.info(f"高速道路データ抽出完了: {len(handler.ways)} ways")
+    logger.info(f"way抽出完了: {len(handler.ways_by_id)} ways")
 
-    return handler.ways
+    return handler.ways_by_id
 
 
-def filter_by_name(ways: list[dict], query_name: str) -> list[dict]:
+def get_ways_for_highway(
+    ways_by_id: dict[int, dict],
+    way_ids: set[int],
+) -> list[dict]:
     """
-    名前でフィルタリング
+    メモリ内のwayデータから指定されたway IDのwayを取得
 
     Args:
-        ways: 高速道路wayのリスト
-        query_name: 検索する名前（先頭一致）
+        ways_by_id: way_id -> way data のマッピング
+        way_ids: 取得するway IDのセット
 
     Returns:
-        フィルタリングされたwayのリスト
+        wayのリスト
     """
-    filtered = []
-
-    for way in ways:
-        name = way["tags"].get("name", "")
-        if name.startswith(query_name):
-            filtered.append(way)
-
-    return filtered
+    return [ways_by_id[wid] for wid in way_ids if wid in ways_by_id]
 
 
 def ways_to_geojson(ways: list[dict]) -> dict:

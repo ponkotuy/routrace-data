@@ -11,7 +11,11 @@ from config import DATA_DIR, HIGHWAYS_DIR, HIGHWAYS
 from coastline import fetch_coastline, save_coastline
 from highway import extract_highway, save_highway
 from osm_downloader import download_japan_osm, filter_highways_pbf
-from osm_parser import parse_highways
+from osm_parser import (
+    collect_all_highway_way_ids,
+    extract_all_ways,
+    get_ways_for_highway,
+)
 
 # ロギング設定
 logging.basicConfig(
@@ -127,14 +131,31 @@ def generate_highways(
     # osmiumで事前フィルター（高速化）
     filtered_pbf_path = filter_highways_pbf(pbf_path)
 
-    # PBFから全高速道路データを抽出
-    all_ways = parse_highways(filtered_pbf_path)
+    # 全高速道路のway IDを一括収集（フィルタリング済みPBFから、高速）
+    query_names = [h["query_name"] for h in targets]
+    way_ids_by_query = collect_all_highway_way_ids(filtered_pbf_path, query_names)
+
+    # 全way IDを統合
+    all_way_ids: set[int] = set()
+    for way_ids in way_ids_by_query.values():
+        all_way_ids.update(way_ids)
+
+    # 全wayを一括抽出（元のPBFから、ノード座標を含む）
+    ways_by_id = extract_all_ways(pbf_path, all_way_ids)
 
     highways_info = []
 
     for highway_config in targets:
         try:
-            geojson = extract_highway(all_ways, highway_config)
+            query_name = highway_config["query_name"]
+            way_ids = way_ids_by_query[query_name]
+
+            # メモリ内のwayデータから該当するものを取得
+            ways = get_ways_for_highway(ways_by_id, way_ids)
+
+            logger.debug(f"{highway_config['name']}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
+
+            geojson = extract_highway(filtered_pbf_path, highway_config, ways)
             file_size = save_highway(highway_config["id"], geojson, highways_dir)
 
             highways_info.append({

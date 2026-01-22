@@ -3,9 +3,9 @@
 HIGHWAYS = [
     # NEXCO東日本
     {"id": "tomei", "name": "東名高速道路", "name_en": "Tomei Expressway",
-     "query_name": "東名高速道路", "color": "#1e88e5"},
+     "query_name": "東名高速", "color": "#1e88e5"},
     {"id": "shin-tomei", "name": "新東名高速道路", "name_en": "Shin-Tomei Expressway",
-     "query_name": "新東名高速道路", "color": "#1565c0"},
+     "query_name": "新東名高速", "color": "#1565c0"},
     {"id": "chuo", "name": "中央自動車道", "name_en": "Chuo Expressway",
      "query_name": "中央自動車道", "color": "#8e24aa"},
     {"id": "kanetsu", "name": "関越自動車道", "name_en": "Kan-Etsu Expressway",
@@ -17,9 +17,9 @@ HIGHWAYS = [
 
     # NEXCO中日本
     {"id": "meishin", "name": "名神高速道路", "name_en": "Meishin Expressway",
-     "query_name": "名神高速道路", "color": "#43a047"},
+     "query_name": "名神高速", "color": "#43a047"},
     {"id": "shin-meishin", "name": "新名神高速道路", "name_en": "Shin-Meishin Expressway",
-     "query_name": "新名神高速道路", "color": "#2e7d32"},
+     "query_name": "新名神高速", "color": "#2e7d32"},
     {"id": "hokuriku", "name": "北陸自動車道", "name_en": "Hokuriku Expressway",
      "query_name": "北陸自動車道", "color": "#5e35b1"},
 
