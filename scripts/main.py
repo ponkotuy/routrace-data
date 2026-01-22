@@ -158,11 +158,15 @@ def generate_highways(
             geojson = extract_highway(highway_info, ways)
             file_size = save_highway(name, geojson, highways_dir)
 
+            ref = highway_info.get("ref", "")
+            ref_display = ref.split(";")[0] if ref else ""
+
             highways_info.append({
                 "id": name,
                 "name": name,
                 "nameEn": highway_info.get("name_en", ""),
-                "ref": highway_info.get("ref", ""),
+                "ref": ref,
+                "refDisplay": ref_display,
                 "fileSize": file_size,
                 "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             })
