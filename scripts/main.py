@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,48 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+# グループ化対象の都市高速プレフィックス（優先度順）
+GROUP_PREFIXES = [
+    "首都高速",
+    "阪神高速",
+    "名古屋高速",
+    "広島高速",
+    "北九州都市高速",
+    "福岡都市高速",
+]
+
+# 別名からグループへのマッピング（表記揺れ対応）
+GROUP_ALIASES = {
+    "福岡高速": "福岡都市高速",
+}
+
+
+def detect_group(name: str) -> str | None:
+    """
+    高速道路名からグループを推定
+
+    都市高速道路（首都高速、阪神高速など）を同一グループとして判定する。
+    例:
+        首都高速1号上野線 → 首都高速
+        阪神高速11号池田線 → 阪神高速
+        名古屋高速道路小牧-大高線高架路 → 名古屋高速
+        福岡高速6号アイランドシティ線 → 福岡都市高速
+        東名高速道路 → None（グループなし）
+    """
+    for prefix in GROUP_PREFIXES:
+        if name.startswith(prefix):
+            return prefix
+    # 別名（福岡高速→福岡都市高速など）
+    for alias, group in GROUP_ALIASES.items():
+        if name.startswith(alias):
+            return group
+    # 「名古屋高速道路」のような表記揺れにも対応
+    for prefix in GROUP_PREFIXES:
+        alt_prefix = prefix + "道路"
+        if name.startswith(alt_prefix):
+            return prefix
+    return None
 
 
 def main():
@@ -160,8 +203,9 @@ def generate_highways(
 
             ref = highway_info.get("ref", "")
             ref_display = ref.split(";")[0] if ref else ""
+            group = detect_group(name)
 
-            highways_info.append({
+            entry = {
                 "id": name,
                 "name": name,
                 "nameEn": highway_info.get("name_en", ""),
@@ -169,7 +213,11 @@ def generate_highways(
                 "refDisplay": ref_display,
                 "fileSize": file_size,
                 "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            })
+            }
+            if group:
+                entry["group"] = group
+
+            highways_info.append(entry)
         except Exception as e:
             logger.error(f"高速道路データ抽出エラー: {name} - {e}")
 
