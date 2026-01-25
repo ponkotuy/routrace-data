@@ -165,8 +165,8 @@ class TestGroupOrder:
     """グループ順序の設定テスト"""
 
     def test_group_order_length(self):
-        """グループ順序に15グループが定義されている"""
-        assert len(GROUP_ORDER) == 15
+        """グループ順序に16グループが定義されている"""
+        assert len(GROUP_ORDER) == 16
 
     def test_group_order_starts_with_shutoko(self):
         """最初は首都高速"""
