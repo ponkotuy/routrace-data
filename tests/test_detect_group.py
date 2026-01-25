@@ -51,16 +51,17 @@ class TestDetectGroup:
             ("広島高速2号", "広島高速"),
             ("広島高速3号", "広島高速"),
             ("広島高速4号", "広島高速"),
-            # 北九州都市高速
-            ("北九州都市高速1号線", "北九州都市高速"),
-            ("北九州都市高速2号線", "北九州都市高速"),
-            ("北九州都市高速5号線", "北九州都市高速"),
-            # 福岡都市高速
-            ("福岡都市高速1号香椎線", "福岡都市高速"),
-            ("福岡都市高速2号太宰府線", "福岡都市高速"),
-            ("福岡都市高速環状線", "福岡都市高速"),
-            # 福岡高速（福岡都市高速にマッピング）
-            ("福岡高速6号アイランドシティ線", "福岡都市高速"),
+            # 北九州高速（北九州都市高速はエイリアス）
+            ("北九州高速1号線", "北九州高速"),
+            ("北九州都市高速1号線", "北九州高速"),
+            ("北九州都市高速2号線", "北九州高速"),
+            ("北九州都市高速5号線", "北九州高速"),
+            # 福岡高速（福岡都市高速はエイリアス）
+            ("福岡高速1号香椎線", "福岡高速"),
+            ("福岡高速6号アイランドシティ線", "福岡高速"),
+            ("福岡都市高速1号香椎線", "福岡高速"),
+            ("福岡都市高速2号太宰府線", "福岡高速"),
+            ("福岡都市高速環状線", "福岡高速"),
         ],
     )
     def test_grouped_highways(self, name: str, expected: str):
@@ -104,12 +105,15 @@ class TestDetectGroup:
         assert "首都高速" in GROUP_PREFIXES
         assert "阪神高速" in GROUP_PREFIXES
         assert "名古屋高速" in GROUP_PREFIXES
-        assert "福岡都市高速" in GROUP_PREFIXES
+        assert "北九州高速" in GROUP_PREFIXES
+        assert "福岡高速" in GROUP_PREFIXES
 
     def test_group_aliases(self):
         """グループエイリアスが正しく設定されている"""
-        assert "福岡高速" in GROUP_ALIASES
-        assert GROUP_ALIASES["福岡高速"] == "福岡都市高速"
+        assert "北九州都市高速" in GROUP_ALIASES
+        assert GROUP_ALIASES["北九州都市高速"] == "北九州高速"
+        assert "福岡都市高速" in GROUP_ALIASES
+        assert GROUP_ALIASES["福岡都市高速"] == "福岡高速"
 
     def test_empty_string(self):
         """空文字列はグループなし"""
