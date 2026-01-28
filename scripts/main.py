@@ -86,6 +86,107 @@ GROUP_ALIASES = URBAN_EXPRESSWAY_ALIASES
 TOKYO_STATION = (139.7671, 35.6812)
 
 
+def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
+    """
+    wayをrefでグループ化する
+
+    複合ref（E4;E13等）は最初の部分のみ使用。
+    refなしwayは最寄りのrefありwayのグループに統合。
+    """
+    from shapely.geometry import Point
+
+    # まずrefありwayをグループ化
+    grouped: dict[str, list[dict]] = {}
+    no_ref_ways: list[dict] = []
+
+    for way in ways:
+        ref = way.get("tags", {}).get("ref", "")
+        primary_ref = ref.split(";")[0].strip() if ref else ""
+
+        if primary_ref:
+            if primary_ref not in grouped:
+                grouped[primary_ref] = []
+            grouped[primary_ref].append(way)
+        else:
+            no_ref_ways.append(way)
+
+    # refなしwayを最寄りのグループに統合
+    if no_ref_ways and grouped:
+        # 各グループの代表点（最初のwayの中点）を計算
+        ref_centroids: dict[str, Point] = {}
+        for ref, ref_ways in grouped.items():
+            coords = ref_ways[0]["coordinates"]
+            mid_idx = len(coords) // 2
+            ref_centroids[ref] = Point(coords[mid_idx])
+
+        # 各no-ref wayを最寄りのrefグループに割り当て
+        for way in no_ref_ways:
+            coords = way["coordinates"]
+            mid_idx = len(coords) // 2
+            way_point = Point(coords[mid_idx])
+
+            # 最寄りのrefを見つける
+            nearest_ref = min(
+                ref_centroids.keys(),
+                key=lambda r: way_point.distance(ref_centroids[r])
+            )
+            grouped[nearest_ref].append(way)
+    elif no_ref_ways and not grouped:
+        # 全wayがrefなしの場合は空文字キーで保持
+        grouped[""] = no_ref_ways
+
+    return grouped
+
+
+def should_split_by_ref(grouped_ways: dict[str, list[dict]]) -> bool:
+    """
+    分割が必要か判定。2つ以上の異なる非空refがある場合のみ分割。
+    """
+    non_empty_refs = [ref for ref in grouped_ways.keys() if ref]
+    return len(non_empty_refs) > 1
+
+
+def create_highway_entry(
+    name: str,
+    name_en: str,
+    ref: str,
+    ways: list[dict],
+    highways_dir: Path,
+) -> dict | None:
+    """
+    高速道路エントリを作成しGeoJSONを保存
+    """
+    # refありならid末尾に付与
+    entry_id = f"{name}_{ref}" if ref else name
+
+    highway_info = {
+        "name": name,
+        "name_en": name_en,
+        "ref": ref,
+    }
+
+    geojson = extract_highway(highway_info, ways)
+
+    coords = get_all_coordinates(geojson)
+    if not coords:
+        logger.warning(f"座標がないためスキップ: {entry_id}")
+        return None
+
+    file_size = save_highway(entry_id, geojson, highways_dir)
+    ref_display = ref.split(";")[0] if ref else ""
+
+    return {
+        "id": entry_id,
+        "name": name,
+        "nameEn": name_en,
+        "ref": ref,
+        "refDisplay": ref_display,
+        "fileSize": file_size,
+        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "_geojson": geojson,
+    }
+
+
 def detect_group(name: str) -> str | None:
     """
     高速道路名から都市高速グループを推定
@@ -396,31 +497,39 @@ def generate_highways(
 
             logger.debug(f"{name}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
 
-            geojson = extract_highway(highway_info, ways)
+            # wayをrefでグループ化
+            grouped_ways = group_ways_by_ref(ways)
 
-            # 座標がない高速道路はスキップ
-            coords = get_all_coordinates(geojson)
-            if not coords:
-                logger.warning(f"座標がないためスキップ: {name}")
-                continue
+            if should_split_by_ref(grouped_ways):
+                # 複数refあり → 分割
+                for ref, ref_ways in grouped_ways.items():
+                    entry = create_highway_entry(
+                        name=name,
+                        name_en=highway_info.get("name_en", ""),
+                        ref=ref,
+                        ways=ref_ways,
+                        highways_dir=highways_dir,
+                    )
+                    if entry:
+                        geojson = entry.pop("_geojson")
+                        highways_info.append(entry)
+                        highway_geojsons[entry["id"]] = geojson
+            else:
+                # 単一ref（または全部refなし） → 従来通り
+                # ただしwayからrefを取得
+                ref = list(grouped_ways.keys())[0] if grouped_ways else ""
+                entry = create_highway_entry(
+                    name=name,
+                    name_en=highway_info.get("name_en", ""),
+                    ref=ref,
+                    ways=ways,
+                    highways_dir=highways_dir,
+                )
+                if entry:
+                    geojson = entry.pop("_geojson")
+                    highways_info.append(entry)
+                    highway_geojsons[entry["id"]] = geojson
 
-            file_size = save_highway(name, geojson, highways_dir)
-
-            ref = highway_info.get("ref", "")
-            ref_display = ref.split(";")[0] if ref else ""
-
-            entry = {
-                "id": name,
-                "name": name,
-                "nameEn": highway_info.get("name_en", ""),
-                "ref": ref,
-                "refDisplay": ref_display,
-                "fileSize": file_size,
-                "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            }
-
-            highways_info.append(entry)
-            highway_geojsons[name] = geojson
         except Exception as e:
             logger.error(f"高速道路データ抽出エラー: {name} - {e}")
 
@@ -444,25 +553,34 @@ def assign_groups(
 
     Args:
         highways_info: 高速道路情報リスト（group属性が追加される）
-        highway_geojsons: 高速道路名 → GeoJSONのマッピング
+        highway_geojsons: エントリID → GeoJSONのマッピング
     """
     # 各高速道路の線分（最近点、最遠点）を計算
     highway_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
-    for name, geojson in highway_geojsons.items():
+    for entry_id, geojson in highway_geojsons.items():
         coords = get_all_coordinates(geojson)
         segment = get_extent_segment(coords)
         if segment:
-            highway_segments[name] = segment
+            highway_segments[entry_id] = segment
 
     # 中心高速道路の線分を取得
+    # entry_idは "name" または "name_ref" の形式なので、nameで始まるものを探す
     core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
     for core_name in CORE_HIGHWAYS:
+        # まず名前そのままで探す（分割されていない場合）
         if core_name in highway_segments:
             core_segments[core_name] = highway_segments[core_name]
+        else:
+            # 分割されている場合、name_* で始まるentry_idを探す
+            for entry_id in highway_segments:
+                if entry_id.startswith(f"{core_name}_"):
+                    core_segments[core_name] = highway_segments[entry_id]
+                    break  # 最初に見つかったものを使用
 
     # 各高速道路にグループを割り当て
     for entry in highways_info:
         name = entry["name"]
+        entry_id = entry["id"]
 
         # 都市高速グループの判定
         urban_group = detect_group(name)
@@ -476,12 +594,17 @@ def assign_groups(
             continue
 
         # 一般高速道路のグループ判定
-        if name in highway_segments and core_segments:
-            group = determine_general_group(highway_segments[name], core_segments)
-            entry["group"] = group
+        if entry_id in highway_segments:
+            if core_segments:
+                group = determine_general_group(highway_segments[entry_id], core_segments)
+                entry["group"] = group
+            else:
+                # core_segmentsが空の場合はデフォルトグループ
+                logger.warning(f"core_segmentsが空のためデフォルトグループ: {entry_id}")
+                entry["group"] = "東名"
         else:
             # 座標がない高速道路は事前にフィルタされているはず
-            logger.error(f"座標がない高速道路が残っています: {name}")
+            logger.error(f"セグメントが見つかりません: {entry_id}")
             entry["group"] = "東名"
 
 
