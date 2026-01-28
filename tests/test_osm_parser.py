@@ -23,6 +23,7 @@ class TestHighwayPatterns:
             "中央自動車道",
             "東北自動車道",
             "京葉道路",  # 「高速」「自動車道」を含まないが抽出対象
+            "東京湾アクアライン",  # 「高速」「自動車道」を含まないが抽出対象
         ],
     )
     def test_highway_patterns_match(self, name: str):
