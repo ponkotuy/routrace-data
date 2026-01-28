@@ -40,6 +40,7 @@ URBAN_EXPRESSWAY_PREFIXES = [
 URBAN_EXPRESSWAY_ALIASES = {
     "北九州都市高速": "北九州高速",
     "福岡都市高速": "福岡高速",
+    "東京高速道路": "首都高速",  # 東京高速道路KK線
 }
 
 # 中心高速道路とグループ名のマッピング
@@ -396,6 +397,13 @@ def generate_highways(
             logger.debug(f"{name}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
 
             geojson = extract_highway(highway_info, ways)
+
+            # 座標がない高速道路はスキップ
+            coords = get_all_coordinates(geojson)
+            if not coords:
+                logger.warning(f"座標がないためスキップ: {name}")
+                continue
+
             file_size = save_highway(name, geojson, highways_dir)
 
             ref = highway_info.get("ref", "")
@@ -472,9 +480,9 @@ def assign_groups(
             group = determine_general_group(highway_segments[name], core_segments)
             entry["group"] = group
         else:
-            # 座標がない場合はデフォルトで東名グループ
+            # 座標がない高速道路は事前にフィルタされているはず
+            logger.error(f"座標がない高速道路が残っています: {name}")
             entry["group"] = "東名"
-            logger.warning(f"座標がないため東名グループに割り当て: {name}")
 
 
 def generate_coastline(output_dir: Path) -> None:

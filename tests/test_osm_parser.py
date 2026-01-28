@@ -51,6 +51,8 @@ class TestHighwayDiscoverer:
             ("首都高速1号上野線", "首都高速1号上野線"),
             ("中央自動車道上り", "中央自動車道"),
             ("京葉道路", "京葉道路"),
+            ("北関東自動車道東行き", "北関東自動車道"),
+            ("北関東自動車道西行き", "北関東自動車道"),
         ],
     )
     def test_extract_base_name(self, name: str, expected: str):

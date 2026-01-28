@@ -43,7 +43,7 @@ class HighwayDiscoverer(osmium.SimpleHandler):
         # 括弧以降を除去
         base_name = re.sub(r'[（(].*$', '', name)
         # 方向を除去
-        base_name = re.sub(r'(上り|下り|内回り|外回り)$', '', base_name)
+        base_name = re.sub(r'(上り|下り|内回り|外回り|東行き|西行き|北行き|南行き)$', '', base_name)
         base_name = base_name.strip()
 
         return base_name if base_name else None
