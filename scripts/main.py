@@ -110,6 +110,9 @@ def detect_group(name: str) -> str | None:
         alt_prefix = prefix + "道路"
         if name.startswith(alt_prefix):
             return prefix
+    # 「名古屋」で始まる高速道路は名古屋高速グループ（名古屋第二環状自動車道など）
+    if name.startswith("名古屋"):
+        return "名古屋高速"
     return None
 
 
