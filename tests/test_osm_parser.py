@@ -79,9 +79,38 @@ class TestHighwayDiscoverer:
             "首都高速出口",
             "○○高架橋",
             "△△新設工事",
+            "名古屋高速道路16号一宮線-6号線-4号東海線高架路",
+            "名古屋高速道路小牧-大高線高架路",
+            "京葉道路船橋ＩＣ連絡道路",
         ],
     )
     def test_extract_base_name_excluded(self, name: str):
         """除外パターンにマッチするものはNoneを返す"""
         discoverer = HighwayDiscoverer()
         assert discoverer._extract_base_name(name) is None
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "首都高速川口線-中央環状線",
+            "○○高速△△線-□□線",
+        ],
+    )
+    def test_extract_base_name_compound_route_excluded(self, name: str):
+        """複合路線名（線-を含む）はNoneを返す"""
+        discoverer = HighwayDiscoverer()
+        assert discoverer._extract_base_name(name) is None
+
+    @pytest.mark.parametrize(
+        "name,expected",
+        [
+            ("名古屋第二環状自動車道支線", "名古屋第二環状自動車道支線"),
+            ("山陽自動車道倉敷早島支線", "山陽自動車道倉敷早島支線"),
+            ("山陽自動車道木見支線", "山陽自動車道木見支線"),
+            ("阪神高速32号新神戸トンネル", "阪神高速32号新神戸トンネル"),
+        ],
+    )
+    def test_extract_base_name_special_routes_not_excluded(self, name: str, expected: str):
+        """支線やトンネル路線は除外されない"""
+        discoverer = HighwayDiscoverer()
+        assert discoverer._extract_base_name(name) == expected

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 HIGHWAY_PATTERNS = ['高速', '自動車道', '京葉道路']
 
 # 除外パターン（高架橋、入口、出口などは除外）
-EXCLUDE_PATTERNS = ['高架橋', '入口', '出口', '新設工事']
+EXCLUDE_PATTERNS = ['高架橋', '入口', '出口', '新設工事', '高架路', '連絡道路']
 
 
 class HighwayDiscoverer(osmium.SimpleHandler):
@@ -31,6 +31,10 @@ class HighwayDiscoverer(osmium.SimpleHandler):
         for pattern in EXCLUDE_PATTERNS:
             if pattern in name:
                 return None
+
+        # 複合路線名を除外（例: 首都高速川口線-中央環状線）
+        if '線-' in name:
+            return None
 
         # 高速道路パターンをチェック
         if not any(p in name for p in HIGHWAY_PATTERNS):
