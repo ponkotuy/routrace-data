@@ -7,7 +7,7 @@ from pathlib import Path
 # scriptsディレクトリをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from main import group_ways_by_ref, should_split_by_ref
+from main import group_ways_by_ref, should_split_by_ref, is_national_route_ref
 
 
 class TestGroupWaysByRef:
@@ -73,22 +73,61 @@ class TestGroupWaysByRef:
         assert grouped == {}
 
 
+class TestIsNationalRouteRef:
+    """is_national_route_ref関数のテスト"""
+
+    def test_numeric_only_is_national_route(self):
+        """数字のみは国道"""
+        assert is_national_route_ref("4") is True
+        assert is_national_route_ref("152") is True
+        assert is_national_route_ref("353") is True
+
+    def test_alphanumeric_is_expressway(self):
+        """英字を含むものは高速道路"""
+        assert is_national_route_ref("E1") is False
+        assert is_national_route_ref("E20") is False
+        assert is_national_route_ref("C2") is False
+        assert is_national_route_ref("E1A") is False
+
+    def test_empty_is_not_national_route(self):
+        """空文字は国道ではない"""
+        assert is_national_route_ref("") is False
+
+
 class TestShouldSplitByRef:
     """should_split_by_ref関数のテスト"""
 
     def test_multiple_refs_should_split(self):
-        assert should_split_by_ref({"E19": [], "E20": []}) is True
+        """一般高速: 複数refは分割"""
+        assert should_split_by_ref({"E19": [], "E20": []}, "中央自動車道") is True
 
     def test_single_ref_should_not_split(self):
-        assert should_split_by_ref({"E8": []}) is False
+        """一般高速: 単一refは分割しない"""
+        assert should_split_by_ref({"E8": []}, "北陸自動車道") is False
 
     def test_only_empty_should_not_split(self):
-        assert should_split_by_ref({"": []}) is False
+        """空refのみは分割しない"""
+        assert should_split_by_ref({"": []}, "中央自動車道") is False
 
     def test_one_ref_and_empty_should_not_split(self):
         """refと空文字の組み合わせは分割しない（空文字は無視）"""
-        assert should_split_by_ref({"E8": [], "": []}) is False
+        assert should_split_by_ref({"E8": [], "": []}, "北陸自動車道") is False
 
     def test_three_refs_should_split(self):
         """3つ以上のrefも分割"""
-        assert should_split_by_ref({"E1": [], "E2": [], "E3": []}) is True
+        assert should_split_by_ref({"E1": [], "E2": [], "E3": []}, "中央自動車道") is True
+
+    def test_national_route_refs_ignored_for_general_highway(self):
+        """一般高速: 国道refは分割判定でカウントしない"""
+        # E20と4（国道4号）があっても、有効なのはE20のみなので分割しない
+        assert should_split_by_ref({"E20": [], "4": []}, "中央自動車道") is False
+
+    def test_national_route_refs_valid_for_urban_expressway(self):
+        """都市高速: 数字のみのrefも有効（路線番号）"""
+        # 首都高速は1号、2号など数字のみのrefを使用
+        assert should_split_by_ref({"1": [], "2": []}, "首都高速1号上野線") is True
+
+    def test_mixed_refs_for_general_highway(self):
+        """一般高速: 複数の高速道路refがあれば分割"""
+        # E19とE20があり、4は国道なので無視 → 分割対象
+        assert should_split_by_ref({"E19": [], "E20": [], "4": []}, "中央自動車道") is True

@@ -138,12 +138,35 @@ def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
-def should_split_by_ref(grouped_ways: dict[str, list[dict]]) -> bool:
+def is_national_route_ref(ref: str) -> bool:
     """
-    分割が必要か判定。2つ以上の異なる非空refがある場合のみ分割。
+    数字のみのref（国道）かどうかを判定。
+
+    例: "4", "152", "353" → True (国道)
+        "E20", "E1A", "C2" → False (高速道路)
     """
-    non_empty_refs = [ref for ref in grouped_ways.keys() if ref]
-    return len(non_empty_refs) > 1
+    return ref.isdigit()
+
+
+def should_split_by_ref(grouped_ways: dict[str, list[dict]], name: str) -> bool:
+    """
+    分割が必要か判定。2つ以上の異なる非空の高速道路refがある場合のみ分割。
+
+    一般高速道路の場合、数字のみのref（国道）は高速道路refとしてカウントしない。
+    都市高速の場合は数字のみのrefも有効（路線番号として使用）。
+    """
+    is_urban = detect_group(name) is not None
+
+    if is_urban:
+        # 都市高速: 全ての非空refを有効とする
+        valid_refs = [ref for ref in grouped_ways.keys() if ref]
+    else:
+        # 一般高速: 数字のみのref（国道）は除外
+        valid_refs = [
+            ref for ref in grouped_ways.keys()
+            if ref and not is_national_route_ref(ref)
+        ]
+    return len(valid_refs) > 1
 
 
 def create_highway_entry(
@@ -155,7 +178,16 @@ def create_highway_entry(
 ) -> dict | None:
     """
     高速道路エントリを作成しGeoJSONを保存
+
+    一般高速道路で数字のみのref（国道）の場合はスキップする。
+    都市高速の場合は数字のみのrefも有効。
     """
+    # 一般高速道路で数字のみのref（国道）はスキップ
+    is_urban = detect_group(name) is not None
+    if ref and not is_urban and is_national_route_ref(ref):
+        logger.info(f"国道refのためスキップ: {name} (ref={ref})")
+        return None
+
     # refありならid末尾に付与
     entry_id = f"{name}_{ref}" if ref else name
 
@@ -500,7 +532,7 @@ def generate_highways(
             # wayをrefでグループ化
             grouped_ways = group_ways_by_ref(ways)
 
-            if should_split_by_ref(grouped_ways):
+            if should_split_by_ref(grouped_ways, name):
                 # 複数refあり → 分割
                 for ref, ref_ways in grouped_ways.items():
                     entry = create_highway_entry(
@@ -516,8 +548,13 @@ def generate_highways(
                         highway_geojsons[entry["id"]] = geojson
             else:
                 # 単一ref（または全部refなし） → 従来通り
-                # ただしwayからrefを取得
-                ref = list(grouped_ways.keys())[0] if grouped_ways else ""
+                # 有効なref（国道以外）を探す
+                is_urban = detect_group(name) is not None
+                valid_refs = [
+                    r for r in grouped_ways.keys()
+                    if r and (is_urban or not is_national_route_ref(r))
+                ]
+                ref = valid_refs[0] if valid_refs else ""
                 entry = create_highway_entry(
                     name=name,
                     name_en=highway_info.get("name_en", ""),
