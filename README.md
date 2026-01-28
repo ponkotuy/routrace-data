@@ -1,5 +1,8 @@
 # routrace-data
 
+[![Test](https://github.com/ponkotuy/routrace-data/actions/workflows/test.yml/badge.svg)](https://github.com/ponkotuy/routrace-data/actions/workflows/test.yml)
+[![Deploy](https://github.com/ponkotuy/routrace-data/actions/workflows/deploy.yml/badge.svg)](https://github.com/ponkotuy/routrace-data/actions/workflows/deploy.yml)
+
 routrace用の地図データ（高速道路・海岸線）を生成するスクリプト群。
 
 OpenStreetMapのデータからGeoJSONを生成し、GitHub Pagesで配信します。
