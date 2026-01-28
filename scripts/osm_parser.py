@@ -9,7 +9,7 @@ import osmium
 logger = logging.getLogger(__name__)
 
 # 高速道路として認識する名前パターン
-HIGHWAY_PATTERNS = ['高速', '自動車道', '京葉道路', 'アクアライン']
+HIGHWAY_PATTERNS = ['高速', '自動車道', '京葉道路', 'アクアライン', '仙台東部道', '仙台南部道', '仙台北部道']
 
 # 除外パターン（高架橋、入口、出口などは除外）
 EXCLUDE_PATTERNS = ['高架橋', '入口', '出口', '新設工事', '高架路', '連絡道路']
