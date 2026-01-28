@@ -9,14 +9,8 @@ OpenStreetMapのデータからGeoJSONを生成し、GitHub Pagesで配信しま
 
 ## 必要なもの
 
-### Python依存関係
-
-- Python 3.10以上
-- uv（推奨）または pip
-
-### システム依存関係
-
-**osmium-tool** が必要です（PBFファイルの事前フィルタリングに使用）。
+- [mise](https://mise.jdx.dev/)
+- osmium-tool
 
 ```bash
 # Arch Linux
@@ -32,15 +26,10 @@ brew install osmium-tool
 ## セットアップ
 
 ```bash
-# リポジトリをクローン
-git clone https://github.com/<username>/routrace-data.git
+git clone https://github.com/ponkotuy/routrace-data.git
 cd routrace-data
-
-# 依存関係をインストール（uvを使用）
+mise install
 uv sync
-
-# または pip を使用
-pip install -e .
 ```
 
 ## 使い方
@@ -55,11 +44,8 @@ uv run poe coastline
 # 高速道路のみ生成
 uv run poe highways
 
-# 直接実行する場合
-uv run python scripts/main.py --verbose
-
 # 特定の高速道路のみ生成
-uv run python scripts/main.py --highway-id tomei --highway-id meishin
+uv run python scripts/main.py --highway-name "東名" --verbose
 ```
 
 ## 出力
@@ -72,9 +58,7 @@ data/
 ├── coastline.json     # 海岸線データ
 └── highways/          # 高速道路データ
     ├── index.json     # 高速道路一覧
-    ├── tomei.json
-    ├── meishin.json
-    └── ...
+    └── *.json         # 各高速道路のGeoJSON
 ```
 
 ## ライセンス
