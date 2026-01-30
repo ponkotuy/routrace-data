@@ -2,6 +2,7 @@
 
 [![Test](https://github.com/ponkotuy/routrace-data/actions/workflows/test.yml/badge.svg)](https://github.com/ponkotuy/routrace-data/actions/workflows/test.yml)
 [![Deploy](https://github.com/ponkotuy/routrace-data/actions/workflows/deploy.yml/badge.svg)](https://github.com/ponkotuy/routrace-data/actions/workflows/deploy.yml)
+[![codecov](https://codecov.io/gh/ponkotuy/routrace-data/graph/badge.svg)](https://codecov.io/gh/ponkotuy/routrace-data)
 
 routrace用の地図データ（高速道路・海岸線）を生成するスクリプト群。
 
