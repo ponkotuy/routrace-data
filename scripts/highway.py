@@ -1,12 +1,12 @@
 """高速道路データ処理"""
 
-import json
 import logging
 from pathlib import Path
 
 from osm_parser import ways_to_geojson
 from simplify import simplify_geojson, get_coordinate_count
 from config import SIMPLIFY_TOLERANCE
+from utils import save_geojson
 
 logger = logging.getLogger(__name__)
 
@@ -66,23 +66,4 @@ def save_highway(name: str, geojson: dict, output_dir: Path) -> int:
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{name}.json"
-
-    json_str = json.dumps(geojson, ensure_ascii=False, separators=(",", ":"))
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(json_str)
-
-    file_size = output_path.stat().st_size
-    size_str = format_size(file_size)
-    logger.info("保存: %s (%s)", output_path, size_str)
-
-    return file_size
-
-
-def format_size(size_bytes: int) -> str:
-    """バイト数を人間が読みやすい形式に変換"""
-    if size_bytes >= 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    if size_bytes >= 1024:
-        return f"{size_bytes / 1024:.0f} KB"
-    return f"{size_bytes} B"
+    return save_geojson(geojson, output_path)
