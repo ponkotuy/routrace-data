@@ -8,7 +8,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 import pytest
 
-from main import URBAN_EXPRESSWAY_ALIASES, URBAN_EXPRESSWAY_PREFIXES, detect_group
+from highway_grouping import (
+    URBAN_EXPRESSWAY_ALIASES,
+    URBAN_EXPRESSWAY_PREFIXES,
+    detect_group,
+)
 
 
 class TestDetectGroup:

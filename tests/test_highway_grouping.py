@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 import pytest
 
-from main import (
+from highway_grouping import (
     CORE_HIGHWAYS,
     GROUP_ORDER,
     TOKYO_STATION,
