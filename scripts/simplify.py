@@ -46,7 +46,7 @@ def simplify_geojson(geojson: dict, tolerance: float = SIMPLIFY_TOLERANCE) -> di
             }
             simplified_features.append(simplified_feature)
 
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             # 変換に失敗した場合は元のfeatureをそのまま使用
             simplified_features.append(feature)
 
@@ -85,7 +85,7 @@ def get_coordinate_count(geojson: dict) -> int:
             geom = shape(geometry)
             coords = get_coordinates(geom)
             count += len(coords)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             # カウントできない場合はスキップ
             pass
 
