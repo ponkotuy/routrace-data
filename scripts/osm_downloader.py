@@ -59,17 +59,6 @@ def download_japan_osm(cache_dir: Path = DEFAULT_CACHE_DIR, force: bool = False)
     return output_path
 
 
-def get_cached_pbf_path(cache_dir: Path = DEFAULT_CACHE_DIR) -> Path | None:
-    """
-    キャッシュ済みのPBFファイルパスを取得
-
-    Returns:
-        PBFファイルパス、存在しない場合はNone
-    """
-    pbf_path = cache_dir / "japan-latest.osm.pbf"
-    return pbf_path if pbf_path.exists() else None
-
-
 def filter_highways_pbf(
     input_pbf: Path,
     cache_dir: Path = DEFAULT_CACHE_DIR,
