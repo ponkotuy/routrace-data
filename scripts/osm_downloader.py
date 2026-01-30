@@ -111,15 +111,15 @@ def filter_highways_pbf(
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         raise RuntimeError(
             "osmiumコマンドが見つかりません。osmium-toolをインストールしてください。\n"
             "  Ubuntu/Debian: sudo apt install osmium-tool\n"
             "  macOS: brew install osmium-tool\n"
             "  Arch Linux: sudo pacman -S osmium-tool"
-        )
+        ) from exc
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"osmiumコマンドが失敗しました: {e.stderr}")
+        raise RuntimeError(f"osmiumコマンドが失敗しました: {e.stderr}") from e
 
     size_mb = output_path.stat().st_size / (1024 * 1024)
     logger.info(f"フィルター完了: {output_path} ({size_mb:.1f} MB)")

@@ -83,7 +83,6 @@ def format_size(size_bytes: int) -> str:
     """バイト数を人間が読みやすい形式に変換"""
     if size_bytes >= 1024 * 1024:
         return f"{size_bytes / (1024 * 1024):.1f} MB"
-    elif size_bytes >= 1024:
+    if size_bytes >= 1024:
         return f"{size_bytes / 1024:.0f} KB"
-    else:
-        return f"{size_bytes} B"
+    return f"{size_bytes} B"

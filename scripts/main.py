@@ -3,7 +3,6 @@
 import argparse
 import json
 import logging
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -320,8 +319,7 @@ def segments_intersect(
     d3 = cross_product(p1, p2, p3)
     d4 = cross_product(p1, p2, p4)
 
-    if ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0)) and \
-       ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0)):
+    if (d1 * d2 < 0) and (d3 * d4 < 0):
         return True
 
     return False
@@ -386,14 +384,14 @@ def determine_general_group(
     nearest_group = "東名"  # デフォルト
 
     # CORE_HIGHWAYSの順序で処理（同距離の場合はリスト上位を優先）
-    for highway_name in CORE_HIGHWAYS:
+    for highway_name, group_name in CORE_HIGHWAYS.items():
         if highway_name not in core_segments:
             continue
         core_segment = core_segments[highway_name]
         distance = segment_to_segment_distance(highway_segment, core_segment)
         if distance < min_distance:
             min_distance = distance
-            nearest_group = CORE_HIGHWAYS[highway_name]
+            nearest_group = group_name
 
     return nearest_group
 
@@ -551,7 +549,7 @@ def generate_highways(
                 # 有効なref（国道以外）を探す
                 is_urban = detect_group(name) is not None
                 valid_refs = [
-                    r for r in grouped_ways.keys()
+                    r for r in grouped_ways
                     if r and (is_urban or not is_national_route_ref(r))
                 ]
                 ref = valid_refs[0] if valid_refs else ""
@@ -609,9 +607,9 @@ def assign_groups(
             core_segments[core_name] = highway_segments[core_name]
         else:
             # 分割されている場合、name_* で始まるentry_idを探す
-            for entry_id in highway_segments:
+            for entry_id, segment in highway_segments.items():
                 if entry_id.startswith(f"{core_name}_"):
-                    core_segments[core_name] = highway_segments[entry_id]
+                    core_segments[core_name] = segment
                     break  # 最初に見つかったものを使用
 
     # 各高速道路にグループを割り当て
