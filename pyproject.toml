@@ -12,7 +12,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["poethepoet>=0.40.0", "pytest>=8.0.0", "pytest-cov>=6.0.0"]
+dev = [
+    "poethepoet>=0.40.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "vulture>=2.14",
+]
 
 [tool.poe.tasks]
 generate = "python scripts/main.py --verbose"

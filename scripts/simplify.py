@@ -1,6 +1,6 @@
 """ジオメトリ簡略化"""
 
-from shapely.geometry import shape, mapping, LineString, MultiLineString
+from shapely.geometry import shape, mapping
 from shapely import get_coordinates
 
 from config import SIMPLIFY_TOLERANCE
