@@ -18,3 +18,7 @@ venv/
 .idea/
 .vscode/
 *.swp
+
+# Coverage
+.coverage
+coverage.xml
