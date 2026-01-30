@@ -1,5 +1,31 @@
 """高速道路グループ判定と幾何学計算"""
 
+# 1桁国道（グループの中心となる国道）
+CORE_NATIONAL_ROUTES = {
+    "1": "国道1号",
+    "2": "国道2号",
+    "3": "国道3号",
+    "4": "国道4号",
+    "5": "国道5号",
+    "6": "国道6号",
+    "7": "国道7号",
+    "8": "国道8号",
+    "9": "国道9号",
+}
+
+# 国道グループの順序
+NATIONAL_ROUTE_GROUP_ORDER = [
+    "国道1号",
+    "国道2号",
+    "国道3号",
+    "国道4号",
+    "国道5号",
+    "国道6号",
+    "国道7号",
+    "国道8号",
+    "国道9号",
+]
+
 # 都市高速グループのプレフィックス
 URBAN_EXPRESSWAY_PREFIXES = [
     "首都高速",
@@ -229,6 +255,36 @@ def determine_general_group(
             continue
         core_segment = core_segments[highway_name]
         distance = segment_to_segment_distance(highway_segment, core_segment)
+        if distance < min_distance:
+            min_distance = distance
+            nearest_group = group_name
+
+    return nearest_group
+
+
+def determine_national_route_group(
+    route_segment: tuple[tuple[float, float], tuple[float, float]],
+    core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]],
+) -> str:
+    """
+    国道のグループを決定（最も近い1桁国道）
+
+    Args:
+        route_segment: 対象国道の線分（最近点、最遠点）
+        core_segments: 1桁国道名 → 線分のマッピング
+
+    Returns:
+        最も近い1桁国道のグループ名
+    """
+    min_distance = float("inf")
+    nearest_group = "国道1号"  # デフォルト
+
+    # CORE_NATIONAL_ROUTESの順序で処理（同距離の場合はリスト上位を優先）
+    for group_name in CORE_NATIONAL_ROUTES.values():
+        if group_name not in core_segments:
+            continue
+        core_segment = core_segments[group_name]
+        distance = segment_to_segment_distance(route_segment, core_segment)
         if distance < min_distance:
             min_distance = distance
             nearest_group = group_name

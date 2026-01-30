@@ -114,3 +114,60 @@ def filter_highways_pbf(
     logger.info("フィルター完了: %s (%.1f MB)", output_path, size_mb)
 
     return output_path
+
+
+def filter_national_routes_pbf(
+    input_pbf: Path,
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    force: bool = False,
+) -> Path:
+    """
+    osmiumでPBFから国道のrelation/wayのみを抽出
+
+    Args:
+        input_pbf: 入力PBFファイルパス
+        cache_dir: キャッシュディレクトリ
+        force: 既存ファイルがあっても再生成
+
+    Returns:
+        フィルタリング済みPBFファイルのパス
+    """
+    output_path = cache_dir / "japan-national-routes.osm.pbf"
+
+    if output_path.exists() and not force:
+        # 入力ファイルより新しければスキップ
+        if output_path.stat().st_mtime >= input_pbf.stat().st_mtime:
+            size_mb = output_path.stat().st_size / (1024 * 1024)
+            logger.info("フィルター済みキャッシュ: %s (%.1f MB)", output_path, size_mb)
+            return output_path
+
+    logger.info("osmiumで国道relation/wayを抽出中...")
+
+    cmd = [
+        "osmium",
+        "tags-filter",
+        str(input_pbf),
+        "r/network=JP:national",
+        "w/highway=trunk,trunk_link",
+        "-R",  # relationのメンバーも含める
+        "-o",
+        str(output_path),
+        "--overwrite",
+    ]
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "osmiumコマンドが見つかりません。osmium-toolをインストールしてください。\n"
+            "  Ubuntu/Debian: sudo apt install osmium-tool\n"
+            "  macOS: brew install osmium-tool\n"
+            "  Arch Linux: sudo pacman -S osmium-tool"
+        ) from exc
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"osmiumコマンドが失敗しました: {e.stderr}") from e
+
+    size_mb = output_path.stat().st_size / (1024 * 1024)
+    logger.info("フィルター完了: %s (%.1f MB)", output_path, size_mb)
+
+    return output_path

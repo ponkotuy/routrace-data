@@ -232,3 +232,79 @@ def ways_to_geojson(ways: list[dict]) -> dict:
         "type": "FeatureCollection",
         "features": features,
     }
+
+
+class NationalRouteDiscoverer(osmium.SimpleHandler):
+    """国道のrelationを自動検出するハンドラー"""
+
+    def __init__(self):
+        super().__init__()
+        # ref番号 -> set of way IDs
+        self.way_ids_by_ref: dict[str, set[int]] = {}
+        # ref番号 -> relation情報
+        self.route_info: dict[str, dict] = {}
+
+    def _normalize_name(self, ref: str) -> str:
+        """ref番号から正規化した名前を生成"""
+        return f"国道{ref}号"
+
+    def relation(self, r):
+        """route=road かつ network=JP:national のrelationからway IDを収集"""
+        tags = dict(r.tags)
+
+        # route=road かつ network=JP:national のrelationのみ対象
+        if tags.get("route") != "road":
+            return
+        if tags.get("network") != "JP:national":
+            return
+
+        # ref番号を取得（数字のみ対象）
+        ref = tags.get("ref", "")
+        if not ref or not ref.isdigit():
+            return
+
+        # way IDを収集
+        if ref not in self.way_ids_by_ref:
+            self.way_ids_by_ref[ref] = set()
+            self.route_info[ref] = {
+                "ref": ref,
+                "name": self._normalize_name(ref),
+                "name_en": f"National Route {ref}",
+            }
+
+        for member in r.members:
+            if member.type == "w":
+                self.way_ids_by_ref[ref].add(member.ref)
+
+
+def discover_national_routes(pbf_path: Path) -> tuple[list[dict], dict[str, set[int]]]:
+    """
+    PBFから国道を自動検出
+
+    Args:
+        pbf_path: フィルタリング済みPBFファイルパス
+
+    Returns:
+        (国道情報のリスト, ref番号 -> way IDセットのマッピング)
+    """
+    logger.info("国道を自動検出中...")
+
+    handler = NationalRouteDiscoverer()
+    handler.apply_file(str(pbf_path))
+
+    # 国道情報をリストに変換（ref番号でソート）
+    routes = []
+    for ref in sorted(handler.route_info.keys(), key=int):
+        info = handler.route_info[ref]
+        way_count = len(handler.way_ids_by_ref[ref])
+        routes.append({
+            "ref": info["ref"],
+            "name": info["name"],
+            "name_en": info["name_en"],
+            "way_count": way_count,
+        })
+
+    total_ways = sum(len(ids) for ids in handler.way_ids_by_ref.values())
+    logger.info("検出完了: %d路線, 合計 %d ways", len(routes), total_ways)
+
+    return routes, handler.way_ids_by_ref

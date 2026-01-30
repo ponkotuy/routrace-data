@@ -6,3 +6,4 @@ SIMPLIFY_TOLERANCE = 0.001
 # 出力ディレクトリ名
 DATA_DIR = "data"
 HIGHWAYS_DIR = "highways"
+NATIONAL_ROADS_DIR = "national-roads"
