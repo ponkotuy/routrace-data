@@ -49,6 +49,7 @@ class HighwayDiscoverer(osmium.SimpleHandler):
         return base_name if base_name else None
 
     def relation(self, r):
+        """route=roadのrelationから高速道路のway IDを収集"""
         tags = dict(r.tags)
 
         # route=road のrelationのみ対象
@@ -95,6 +96,7 @@ class BulkWayCollector(osmium.SimpleHandler):
         self.ways_by_id: dict[int, dict] = {}
 
     def way(self, w):
+        """指定されたway IDに該当するwayのデータを収集"""
         if w.id not in self.all_way_ids:
             return
 
