@@ -3,9 +3,10 @@
 import argparse
 import json
 import logging
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+from shapely.geometry import Point
 
 from config import DATA_DIR, HIGHWAYS_DIR
 from coastline import fetch_coastline, save_coastline
@@ -41,7 +42,6 @@ def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
     複合ref（E4;E13等）は最初の部分のみ使用。
     refなしwayは最寄りのrefありwayのグループに統合。
     """
-    from shapely.geometry import Point
 
     # まずrefありwayをグループ化
     grouped: dict[str, list[dict]] = {}
@@ -76,7 +76,7 @@ def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
             # 最寄りのrefを見つける
             nearest_ref = min(
                 ref_centroids.keys(),
-                key=lambda r: way_point.distance(ref_centroids[r])
+                key=lambda r, wp=way_point: wp.distance(ref_centroids[r])
             )
             grouped[nearest_ref].append(way)
     elif no_ref_ways and not grouped:
@@ -167,6 +167,67 @@ def create_highway_entry(
     }
 
 
+def _process_single_highway(
+    highway_info: dict,
+    way_ids_by_name: dict[str, set[int]],
+    ways_by_id: dict[int, dict],
+    highways_dir: Path,
+) -> list[tuple[dict, dict]]:
+    """
+    単一の高速道路を処理してエントリとGeoJSONのペアを返す
+
+    Returns:
+        [(entry, geojson), ...] のリスト（複数refで分割される場合は複数）
+    """
+    name = highway_info["name"]
+    way_ids = way_ids_by_name.get(name, set())
+
+    # メモリ内のwayデータから該当するものを取得
+    ways = get_ways_for_highway(ways_by_id, way_ids)
+
+    logger.debug("%s: %d way IDs, %d ways抽出", name, len(way_ids), len(ways))
+
+    # wayをrefでグループ化
+    grouped_ways = group_ways_by_ref(ways)
+
+    results: list[tuple[dict, dict]] = []
+
+    if should_split_by_ref(grouped_ways, name):
+        # 複数refあり → 分割
+        for ref, ref_ways in grouped_ways.items():
+            entry = create_highway_entry(
+                name=name,
+                name_en=highway_info.get("name_en", ""),
+                ref=ref,
+                ways=ref_ways,
+                highways_dir=highways_dir,
+            )
+            if entry:
+                geojson = entry.pop("_geojson")
+                results.append((entry, geojson))
+    else:
+        # 単一ref（または全部refなし） → 従来通り
+        # 有効なref（国道以外）を探す
+        is_urban = detect_group(name) is not None
+        valid_refs = [
+            r for r in grouped_ways
+            if r and (is_urban or not is_national_route_ref(r))
+        ]
+        ref = valid_refs[0] if valid_refs else ""
+        entry = create_highway_entry(
+            name=name,
+            name_en=highway_info.get("name_en", ""),
+            ref=ref,
+            ways=ways,
+            highways_dir=highways_dir,
+        )
+        if entry:
+            geojson = entry.pop("_geojson")
+            results.append((entry, geojson))
+
+    return results
+
+
 def main():
     """
     コマンドライン引数:
@@ -218,18 +279,14 @@ def main():
     logger.info("開始: データ生成")
     logger.info("出力先: %s/", data_dir)
 
-    try:
-        if args.coastline_only:
-            generate_coastline(output_dir)
-        elif args.highways_only:
-            generate_highways(output_dir, args.highway_names)
-        else:
-            generate_all(output_dir)
+    if args.coastline_only:
+        generate_coastline(output_dir)
+    elif args.highways_only:
+        generate_highways(output_dir, args.highway_names)
+    else:
+        generate_all(output_dir)
 
-        logger.info("完了")
-    except Exception as e:
-        logger.error("エラー: %s", e)
-        sys.exit(1)
+    logger.info("完了")
 
 
 def generate_all(output_dir: Path) -> None:
@@ -248,14 +305,15 @@ def generate_all(output_dir: Path) -> None:
     generate_highways(output_dir)
 
 
-def generate_highways(
-    output_dir: Path,
-    highway_names: list[str] | None = None,
-) -> None:
-    """高速道路データを生成"""
-    data_dir = output_dir / DATA_DIR
-    highways_dir = data_dir / HIGHWAYS_DIR
+def _prepare_osm_data(
+    highway_names: list[str] | None,
+) -> tuple[list[dict], dict[str, set[int]], dict[int, dict]] | None:
+    """
+    OSMデータを準備し、対象の高速道路を取得
 
+    Returns:
+        (targets, way_ids_by_name, ways_by_id) または None（対象なしの場合）
+    """
     # OSMデータをダウンロード（キャッシュがあればスキップ）
     pbf_path = download_japan_osm()
 
@@ -270,7 +328,7 @@ def generate_highways(
         targets = [h for h in discovered if any(n in h["name"] for n in highway_names)]
         if not targets:
             logger.warning("指定された名前の高速道路が見つかりません: %s", highway_names)
-            return
+            return None
     else:
         targets = discovered
 
@@ -285,59 +343,33 @@ def generate_highways(
     # 全wayを一括抽出（元のPBFから、ノード座標を含む）
     ways_by_id = extract_all_ways(pbf_path, all_way_ids)
 
+    return targets, way_ids_by_name, ways_by_id
+
+
+def generate_highways(
+    output_dir: Path,
+    highway_names: list[str] | None = None,
+) -> None:
+    """高速道路データを生成"""
+    highways_dir = output_dir / DATA_DIR / HIGHWAYS_DIR
+
+    osm_data = _prepare_osm_data(highway_names)
+    if osm_data is None:
+        return
+    targets, way_ids_by_name, ways_by_id = osm_data
+
     highways_info = []
     highway_geojsons: dict[str, dict] = {}  # グループ計算用にGeoJSONを保持
 
     for highway_info in targets:
         try:
-            name = highway_info["name"]
-            way_ids = way_ids_by_name.get(name, set())
-
-            # メモリ内のwayデータから該当するものを取得
-            ways = get_ways_for_highway(ways_by_id, way_ids)
-
-            logger.debug("%s: %d way IDs, %d ways抽出", name, len(way_ids), len(ways))
-
-            # wayをrefでグループ化
-            grouped_ways = group_ways_by_ref(ways)
-
-            if should_split_by_ref(grouped_ways, name):
-                # 複数refあり → 分割
-                for ref, ref_ways in grouped_ways.items():
-                    entry = create_highway_entry(
-                        name=name,
-                        name_en=highway_info.get("name_en", ""),
-                        ref=ref,
-                        ways=ref_ways,
-                        highways_dir=highways_dir,
-                    )
-                    if entry:
-                        geojson = entry.pop("_geojson")
-                        highways_info.append(entry)
-                        highway_geojsons[entry["id"]] = geojson
-            else:
-                # 単一ref（または全部refなし） → 従来通り
-                # 有効なref（国道以外）を探す
-                is_urban = detect_group(name) is not None
-                valid_refs = [
-                    r for r in grouped_ways
-                    if r and (is_urban or not is_national_route_ref(r))
-                ]
-                ref = valid_refs[0] if valid_refs else ""
-                entry = create_highway_entry(
-                    name=name,
-                    name_en=highway_info.get("name_en", ""),
-                    ref=ref,
-                    ways=ways,
-                    highways_dir=highways_dir,
-                )
-                if entry:
-                    geojson = entry.pop("_geojson")
-                    highways_info.append(entry)
-                    highway_geojsons[entry["id"]] = geojson
-
-        except Exception as e:
-            logger.error("高速道路データ抽出エラー: %s - %s", name, e)
+            for entry, geojson in _process_single_highway(
+                highway_info, way_ids_by_name, ways_by_id, highways_dir
+            ):
+                highways_info.append(entry)
+                highway_geojsons[entry["id"]] = geojson
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("高速道路データ抽出エラー: %s - %s", highway_info["name"], e)
 
     # グループを計算
     logger.info("グループ計算中...")
@@ -348,6 +380,38 @@ def generate_highways(
 
     # group.json生成
     generate_groups(output_dir)
+
+
+def _determine_group(
+    name: str,
+    entry_id: str,
+    highway_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]],
+    core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]],
+) -> str:
+    """
+    高速道路のグループを決定
+
+    Returns:
+        グループ名
+    """
+    # 都市高速グループの判定
+    urban_group = detect_group(name)
+    if urban_group:
+        return urban_group
+
+    # 中心高速道路自身の場合
+    if name in CORE_HIGHWAYS:
+        return CORE_HIGHWAYS[name]
+
+    # 一般高速道路のグループ判定
+    if entry_id in highway_segments:
+        if core_segments:
+            return determine_general_group(highway_segments[entry_id], core_segments)
+        logger.warning("core_segmentsが空のためデフォルトグループ: %s", entry_id)
+        return "東名"
+
+    logger.error("セグメントが見つかりません: %s", entry_id)
+    return "東名"
 
 
 def assign_groups(
@@ -385,33 +449,9 @@ def assign_groups(
 
     # 各高速道路にグループを割り当て
     for entry in highways_info:
-        name = entry["name"]
-        entry_id = entry["id"]
-
-        # 都市高速グループの判定
-        urban_group = detect_group(name)
-        if urban_group:
-            entry["group"] = urban_group
-            continue
-
-        # 中心高速道路自身の場合
-        if name in CORE_HIGHWAYS:
-            entry["group"] = CORE_HIGHWAYS[name]
-            continue
-
-        # 一般高速道路のグループ判定
-        if entry_id in highway_segments:
-            if core_segments:
-                group = determine_general_group(highway_segments[entry_id], core_segments)
-                entry["group"] = group
-            else:
-                # core_segmentsが空の場合はデフォルトグループ
-                logger.warning("core_segmentsが空のためデフォルトグループ: %s", entry_id)
-                entry["group"] = "東名"
-        else:
-            # 座標がない高速道路は事前にフィルタされているはず
-            logger.error("セグメントが見つかりません: %s", entry_id)
-            entry["group"] = "東名"
+        entry["group"] = _determine_group(
+            entry["name"], entry["id"], highway_segments, core_segments
+        )
 
 
 def generate_coastline(output_dir: Path) -> None:
