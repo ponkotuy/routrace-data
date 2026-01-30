@@ -23,7 +23,7 @@ def fetch_coastline() -> dict:
         GeoJSON FeatureCollection (dict)
     """
     logger.info("海岸線データ取得中...")
-    logger.info(f"ソース: {JAPAN_GEOJSON_URL}")
+    logger.info("ソース: %s", JAPAN_GEOJSON_URL)
 
     response = requests.get(JAPAN_GEOJSON_URL, timeout=60)
     response.raise_for_status()
@@ -31,7 +31,7 @@ def fetch_coastline() -> dict:
     geojson = response.json()
 
     feature_count = len(geojson.get("features", []))
-    logger.info(f"海岸線データ取得完了: {feature_count} features")
+    logger.info("海岸線データ取得完了: %d features", feature_count)
 
     if feature_count == 0:
         logger.warning("海岸線データが0件でした")
@@ -41,7 +41,7 @@ def fetch_coastline() -> dict:
     simplified = simplify_geojson(geojson, SIMPLIFY_TOLERANCE)
     simplified_count = get_coordinate_count(simplified)
 
-    logger.info(f"海岸線データ簡略化: {original_count} coords → {simplified_count} coords")
+    logger.info("海岸線データ簡略化: %d coords → %d coords", original_count, simplified_count)
 
     # プロパティを設定
     simplified["properties"] = {
@@ -74,7 +74,7 @@ def save_coastline(geojson: dict, output_path: Path) -> int:
 
     file_size = output_path.stat().st_size
     size_str = format_size(file_size)
-    logger.info(f"保存: {output_path} ({size_str})")
+    logger.info("保存: %s (%s)", output_path, size_str)
 
     return file_size
 

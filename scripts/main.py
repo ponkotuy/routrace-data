@@ -184,7 +184,7 @@ def create_highway_entry(
     # 一般高速道路で数字のみのref（国道）はスキップ
     is_urban = detect_group(name) is not None
     if ref and not is_urban and is_national_route_ref(ref):
-        logger.info(f"国道refのためスキップ: {name} (ref={ref})")
+        logger.info("国道refのためスキップ: %s (ref=%s)", name, ref)
         return None
 
     # refありならid末尾に付与
@@ -200,7 +200,7 @@ def create_highway_entry(
 
     coords = get_all_coordinates(geojson)
     if not coords:
-        logger.warning(f"座標がないためスキップ: {entry_id}")
+        logger.warning("座標がないためスキップ: %s", entry_id)
         return None
 
     file_size = save_highway(entry_id, geojson, highways_dir)
@@ -445,7 +445,7 @@ def main():
     data_dir = output_dir / DATA_DIR
 
     logger.info("開始: データ生成")
-    logger.info(f"出力先: {data_dir}/")
+    logger.info("出力先: %s/", data_dir)
 
     try:
         if args.coastline_only:
@@ -457,7 +457,7 @@ def main():
 
         logger.info("完了")
     except Exception as e:
-        logger.error(f"エラー: {e}")
+        logger.error("エラー: %s", e)
         sys.exit(1)
 
 
@@ -498,12 +498,12 @@ def generate_highways(
     if highway_names:
         targets = [h for h in discovered if any(n in h["name"] for n in highway_names)]
         if not targets:
-            logger.warning(f"指定された名前の高速道路が見つかりません: {highway_names}")
+            logger.warning("指定された名前の高速道路が見つかりません: %s", highway_names)
             return
     else:
         targets = discovered
 
-    logger.info(f"高速道路データ生成: {len(targets)}路線")
+    logger.info("高速道路データ生成: %d路線", len(targets))
 
     # 全way IDを統合
     all_way_ids: set[int] = set()
@@ -525,7 +525,7 @@ def generate_highways(
             # メモリ内のwayデータから該当するものを取得
             ways = get_ways_for_highway(ways_by_id, way_ids)
 
-            logger.debug(f"{name}: {len(way_ids)} way IDs, {len(ways)} ways抽出")
+            logger.debug("%s: %d way IDs, %d ways抽出", name, len(way_ids), len(ways))
 
             # wayをrefでグループ化
             grouped_ways = group_ways_by_ref(ways)
@@ -566,7 +566,7 @@ def generate_highways(
                     highway_geojsons[entry["id"]] = geojson
 
         except Exception as e:
-            logger.error(f"高速道路データ抽出エラー: {name} - {e}")
+            logger.error("高速道路データ抽出エラー: %s - %s", name, e)
 
     # グループを計算
     logger.info("グループ計算中...")
@@ -635,11 +635,11 @@ def assign_groups(
                 entry["group"] = group
             else:
                 # core_segmentsが空の場合はデフォルトグループ
-                logger.warning(f"core_segmentsが空のためデフォルトグループ: {entry_id}")
+                logger.warning("core_segmentsが空のためデフォルトグループ: %s", entry_id)
                 entry["group"] = "東名"
         else:
             # 座標がない高速道路は事前にフィルタされているはず
-            logger.error(f"セグメントが見つかりません: {entry_id}")
+            logger.error("セグメントが見つかりません: %s", entry_id)
             entry["group"] = "東名"
 
 
@@ -671,7 +671,7 @@ def generate_metadata(output_dir: Path) -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, separators=(",", ":"))
 
-    logger.info(f"保存: {output_path}")
+    logger.info("保存: %s", output_path)
 
 
 def generate_index(output_dir: Path, highways_info: list[dict]) -> None:
@@ -689,7 +689,7 @@ def generate_index(output_dir: Path, highways_info: list[dict]) -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
 
-    logger.info(f"保存: {output_path}")
+    logger.info("保存: %s", output_path)
 
 
 def generate_groups(output_dir: Path) -> None:
@@ -722,7 +722,7 @@ def generate_groups(output_dir: Path) -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump({"groups": groups}, f, ensure_ascii=False, separators=(",", ":"))
 
-    logger.info(f"保存: {output_path}")
+    logger.info("保存: %s", output_path)
 
 
 if __name__ == "__main__":

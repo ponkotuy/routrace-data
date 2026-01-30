@@ -29,7 +29,7 @@ def query_overpass(query: str, timeout: int = OVERPASS_TIMEOUT) -> dict:
 
     for attempt in range(max_retries):
         try:
-            logger.debug(f"Overpass API リクエスト送信 (試行 {attempt + 1}/{max_retries})")
+            logger.debug("Overpass API リクエスト送信 (試行 %d/%d)", attempt + 1, max_retries)
             response = requests.post(
                 OVERPASS_ENDPOINT,
                 data={"data": query},
@@ -40,11 +40,11 @@ def query_overpass(query: str, timeout: int = OVERPASS_TIMEOUT) -> dict:
             try:
                 return response.json()
             except ValueError as e:
-                raise ValueError(f"JSONパースエラー: {e}")
+                raise ValueError(f"JSONパースエラー: {e}") from e
 
         except requests.Timeout:
             if attempt < max_retries - 1:
-                logger.warning(f"タイムアウト。タイムアウト値を増やしてリトライ...")
+                logger.warning("タイムアウト。タイムアウト値を増やしてリトライ...")
                 timeout = int(timeout * 1.5)
                 time.sleep(retry_delay)
             else:
@@ -52,7 +52,7 @@ def query_overpass(query: str, timeout: int = OVERPASS_TIMEOUT) -> dict:
 
         except requests.RequestException as e:
             if attempt < max_retries - 1:
-                logger.warning(f"通信エラー: {e}。{retry_delay}秒後にリトライ...")
+                logger.warning("通信エラー: %s。%d秒後にリトライ...", e, retry_delay)
                 time.sleep(retry_delay)
             else:
                 raise

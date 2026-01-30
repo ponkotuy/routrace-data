@@ -147,7 +147,7 @@ def discover_highways(pbf_path: Path) -> tuple[list[dict], dict[str, set[int]]]:
         })
 
     total_ways = sum(len(ids) for ids in handler.way_ids_by_name.values())
-    logger.info(f"検出完了: {len(highways)}路線, 合計 {total_ways} ways")
+    logger.info("検出完了: %d路線, 合計 %d ways", len(highways), total_ways)
 
     return highways, handler.way_ids_by_name
 
@@ -166,7 +166,7 @@ def extract_all_ways(
     Returns:
         way_id -> way data のマッピング
     """
-    logger.info(f"wayデータを一括抽出中... ({len(all_way_ids)} ways)")
+    logger.info("wayデータを一括抽出中... (%d ways)", len(all_way_ids))
 
     handler = BulkWayCollector(all_way_ids)
     handler.apply_file(
@@ -175,7 +175,7 @@ def extract_all_ways(
         idx="flex_mem",
     )
 
-    logger.info(f"way抽出完了: {len(handler.ways_by_id)} ways")
+    logger.info("way抽出完了: %d ways", len(handler.ways_by_id))
 
     return handler.ways_by_id
 

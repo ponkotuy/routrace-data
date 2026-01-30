@@ -24,23 +24,23 @@ def extract_highway(highway_info: dict, ways: list[dict]) -> dict:
     """
     name = highway_info["name"]
 
-    logger.info(f"高速道路データ変換中: {name}")
+    logger.info("高速道路データ変換中: %s", name)
 
     # GeoJSONに変換
     geojson = ways_to_geojson(ways)
 
     feature_count = len(geojson.get("features", []))
-    logger.info(f"高速道路データ抽出完了: {name} ({feature_count} features)")
+    logger.info("高速道路データ抽出完了: %s (%d features)", name, feature_count)
 
     if feature_count == 0:
-        logger.warning(f"高速道路データが0件でした: {name}")
+        logger.warning("高速道路データが0件でした: %s", name)
 
     # 簡略化
     original_count = get_coordinate_count(geojson)
     simplified = simplify_geojson(geojson, SIMPLIFY_TOLERANCE)
     simplified_count = get_coordinate_count(simplified)
 
-    logger.debug(f"簡略化: {original_count} coords → {simplified_count} coords")
+    logger.debug("簡略化: %d coords → %d coords", original_count, simplified_count)
 
     # プロパティを設定
     simplified["properties"] = {
@@ -74,7 +74,7 @@ def save_highway(name: str, geojson: dict, output_dir: Path) -> int:
 
     file_size = output_path.stat().st_size
     size_str = format_size(file_size)
-    logger.info(f"保存: {output_path} ({size_str})")
+    logger.info("保存: %s (%s)", output_path, size_str)
 
     return file_size
 

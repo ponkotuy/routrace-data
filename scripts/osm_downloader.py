@@ -32,10 +32,10 @@ def download_japan_osm(cache_dir: Path = DEFAULT_CACHE_DIR, force: bool = False)
 
     if output_path.exists() and not force:
         size_mb = output_path.stat().st_size / (1024 * 1024)
-        logger.info(f"キャッシュ済み: {output_path} ({size_mb:.1f} MB)")
+        logger.info("キャッシュ済み: %s (%.1f MB)", output_path, size_mb)
         return output_path
 
-    logger.info(f"OSMデータダウンロード中: {JAPAN_PBF_URL}")
+    logger.info("OSMデータダウンロード中: %s", JAPAN_PBF_URL)
 
     response = requests.get(JAPAN_PBF_URL, stream=True, timeout=60)
     response.raise_for_status()
@@ -54,7 +54,7 @@ def download_japan_osm(cache_dir: Path = DEFAULT_CACHE_DIR, force: bool = False)
                 pbar.update(len(chunk))
 
     size_mb = output_path.stat().st_size / (1024 * 1024)
-    logger.info(f"ダウンロード完了: {output_path} ({size_mb:.1f} MB)")
+    logger.info("ダウンロード完了: %s (%.1f MB)", output_path, size_mb)
 
     return output_path
 
@@ -92,7 +92,7 @@ def filter_highways_pbf(
         # 入力ファイルより新しければスキップ
         if output_path.stat().st_mtime >= input_pbf.stat().st_mtime:
             size_mb = output_path.stat().st_size / (1024 * 1024)
-            logger.info(f"フィルター済みキャッシュ: {output_path} ({size_mb:.1f} MB)")
+            logger.info("フィルター済みキャッシュ: %s (%.1f MB)", output_path, size_mb)
             return output_path
 
     logger.info("osmiumで高速道路relation/wayを抽出中...")
@@ -122,6 +122,6 @@ def filter_highways_pbf(
         raise RuntimeError(f"osmiumコマンドが失敗しました: {e.stderr}") from e
 
     size_mb = output_path.stat().st_size / (1024 * 1024)
-    logger.info(f"フィルター完了: {output_path} ({size_mb:.1f} MB)")
+    logger.info("フィルター完了: %s (%.1f MB)", output_path, size_mb)
 
     return output_path
