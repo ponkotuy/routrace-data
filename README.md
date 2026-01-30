@@ -63,6 +63,19 @@ data/
     └── *.json         # 各高速道路のGeoJSON
 ```
 
+## 開発
+
+```bash
+# テスト実行
+uv run pytest tests/ -v
+
+# Lint（コード品質チェック）
+uv run poe lint
+
+# 未使用コード検出
+uv run vulture scripts/ vulture_whitelist.py
+```
+
 ## ライセンス
 
 生成されるデータは [OpenStreetMap](https://www.openstreetmap.org/) に基づいており、[ODbL](https://opendatacommons.org/licenses/odbl/) ライセンスの下で提供されます。
