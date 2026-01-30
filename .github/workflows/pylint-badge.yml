@@ -31,7 +31,7 @@ jobs:
       - name: Generate pylint badge
         run: |
           mkdir -p .github/badges
-          uv run anybadge --value=${{ steps.pylint.outputs.score }} --file=.github/badges/pylint.svg --label=pylint 2=red 4=orange 6=yellow 8=green
+          uv run anybadge --overwrite --value=${{ steps.pylint.outputs.score }} --file=.github/badges/pylint.svg --label=pylint 2=red 4=orange 6=yellow 8=green
 
       - name: Commit badge
         run: |
