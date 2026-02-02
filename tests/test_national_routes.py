@@ -183,3 +183,27 @@ class TestNationalRouteStandaloneWayDiscoverer:
         """初期状態でway_ids_by_refは空"""
         discoverer = NationalRouteStandaloneWayDiscoverer(set())
         assert discoverer.way_ids_by_ref == {}
+
+    def test_is_ref_consistent_with_name_no_name(self):
+        """nameがない場合は矛盾なし"""
+        discoverer = NationalRouteStandaloneWayDiscoverer(set())
+        assert discoverer._is_ref_consistent_with_name("56", "") is True
+        assert discoverer._is_ref_consistent_with_name("56", None) is True
+
+    def test_is_ref_consistent_with_name_no_route_number(self):
+        """nameに国道番号がない場合は矛盾なし"""
+        discoverer = NationalRouteStandaloneWayDiscoverer(set())
+        assert discoverer._is_ref_consistent_with_name("56", "○○バイパス") is True
+        assert discoverer._is_ref_consistent_with_name("56", "宇和島道路") is True
+
+    def test_is_ref_consistent_with_name_matching(self):
+        """nameとrefが一致する場合は矛盾なし"""
+        discoverer = NationalRouteStandaloneWayDiscoverer(set())
+        assert discoverer._is_ref_consistent_with_name("56", "国道56号") is True
+        assert discoverer._is_ref_consistent_with_name("197", "国道197号バイパス") is True
+
+    def test_is_ref_consistent_with_name_mismatch(self):
+        """nameとrefが矛盾する場合"""
+        discoverer = NationalRouteStandaloneWayDiscoverer(set())
+        assert discoverer._is_ref_consistent_with_name("56", "国道197号") is False
+        assert discoverer._is_ref_consistent_with_name("197", "国道56号") is False

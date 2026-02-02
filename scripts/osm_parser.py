@@ -300,6 +300,9 @@ class NationalRouteDiscoverer(osmium.SimpleHandler):
 class NationalRouteStandaloneWayDiscoverer(osmium.SimpleHandler):
     """relationに含まれないwayから国道を検出するハンドラー"""
 
+    # nameタグから国道番号を抽出するパターン
+    _NATIONAL_ROUTE_NAME_PATTERN = re.compile(r'国道(\d+)号')
+
     def __init__(self, relation_way_ids: set[int]):
         """
         Args:
@@ -309,6 +312,31 @@ class NationalRouteStandaloneWayDiscoverer(osmium.SimpleHandler):
         self.relation_way_ids = relation_way_ids
         # ref番号 -> set of way IDs
         self.way_ids_by_ref: dict[str, set[int]] = {}
+
+    def _is_ref_consistent_with_name(self, ref: str, name: str) -> bool:
+        """
+        refがnameと矛盾しないかチェック
+
+        Args:
+            ref: 国道番号（例: "56"）
+            name: wayのnameタグ
+
+        Returns:
+            矛盾しない場合True、矛盾する場合False
+        """
+        if not name:
+            # nameがない場合は矛盾なしとする
+            return True
+
+        # nameから国道番号を抽出
+        match = self._NATIONAL_ROUTE_NAME_PATTERN.search(name)
+        if not match:
+            # nameに国道番号がない場合は矛盾なしとする
+            return True
+
+        # nameに含まれる国道番号とrefが一致するかチェック
+        name_ref = match.group(1)
+        return ref == name_ref
 
     def way(self, w):
         """highway=trunk/trunk_link かつ有効なref番号を持つwayを収集"""
@@ -328,10 +356,15 @@ class NationalRouteStandaloneWayDiscoverer(osmium.SimpleHandler):
         if not ref:
             return
 
+        name = tags.get("name", "")
+
         # 複数refの場合（"56;197"等）は分割して処理
         refs = [r.strip() for r in ref.split(";")]
         for single_ref in refs:
             if _is_valid_national_route_ref(single_ref):
+                # nameとrefが矛盾する場合はスキップ
+                if not self._is_ref_consistent_with_name(single_ref, name):
+                    continue
                 if single_ref not in self.way_ids_by_ref:
                     self.way_ids_by_ref[single_ref] = set()
                 self.way_ids_by_ref[single_ref].add(w.id)
