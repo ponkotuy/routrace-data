@@ -25,4 +25,5 @@ dev = [
 generate = "python scripts/main.py --verbose"
 coastline = "python scripts/main.py --coastline-only --verbose"
 highways = "python scripts/main.py --highways-only --verbose"
+national-roads = "python scripts/main.py --national-roads-only --verbose"
 lint = "pylint scripts/"

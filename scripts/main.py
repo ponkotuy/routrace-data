@@ -8,22 +8,32 @@ from pathlib import Path
 
 from shapely.geometry import Point
 
-from config import DATA_DIR, HIGHWAYS_DIR
+from config import DATA_DIR, HIGHWAYS_DIR, NATIONAL_ROADS_DIR
 from coastline import fetch_coastline, save_coastline
 from highway import extract_highway, save_highway
-from osm_downloader import download_japan_osm, filter_highways_pbf
+from osm_downloader import (
+    download_japan_osm,
+    filter_highways_pbf,
+    filter_national_routes_pbf,
+)
 from osm_parser import (
     discover_highways,
+    discover_national_routes,
     extract_all_ways,
     get_ways_for_highway,
 )
 from highway_grouping import (
     CORE_HIGHWAYS,
     GROUP_ORDER,
+    NATIONAL_ROUTE_GROUP_ORDER,
+    NATIONAL_ROUTE_GROUPS,
     URBAN_EXPRESSWAY_PREFIXES,
     detect_group,
     determine_general_group,
+    determine_national_route_group,
     get_all_coordinates,
+    get_all_core_national_route_refs,
+    get_core_national_route_name,
     get_extent_segment,
 )
 
@@ -263,6 +273,17 @@ def main():
         help="特定の高速道路のみ生成（複数指定可、部分一致）",
     )
     parser.add_argument(
+        "--national-roads-only",
+        action="store_true",
+        help="国道のみ生成",
+    )
+    parser.add_argument(
+        "--national-route-ref",
+        action="append",
+        dest="national_route_refs",
+        help="特定の国道のみ生成（ref番号指定、複数可）",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="詳細ログ出力",
@@ -283,6 +304,8 @@ def main():
         generate_coastline(output_dir)
     elif args.highways_only:
         generate_highways(output_dir, args.highway_names)
+    elif args.national_roads_only or args.national_route_refs:
+        generate_national_roads(output_dir, args.national_route_refs)
     else:
         generate_all(output_dir)
 
@@ -299,10 +322,14 @@ def generate_all(output_dir: Path) -> None:
         output_dir/data/highways/index.json
         output_dir/data/highways/group.json
         output_dir/data/highways/{name}.json
+        output_dir/data/national-roads/index.json
+        output_dir/data/national-roads/group.json
+        output_dir/data/national-roads/{name}.json
     """
     generate_metadata(output_dir)
     generate_coastline(output_dir)
     generate_highways(output_dir)
+    generate_national_roads(output_dir)
 
 
 def _prepare_osm_data(
@@ -534,6 +561,234 @@ def generate_groups(output_dir: Path) -> None:
         json.dump({"groups": groups}, f, ensure_ascii=False, separators=(",", ":"))
 
     logger.info("保存: %s", output_path)
+
+
+# ============================================
+# 国道生成関数
+# ============================================
+
+
+def _prepare_national_route_data(
+    national_route_refs: list[str] | None,
+) -> tuple[list[dict], dict[str, set[int]], dict[int, dict]] | None:
+    """
+    国道用OSMデータを準備し、対象の国道を取得
+
+    Returns:
+        (targets, way_ids_by_ref, ways_by_id) または None（対象なしの場合）
+    """
+    # OSMデータをダウンロード（キャッシュがあればスキップ）
+    pbf_path = download_japan_osm()
+
+    # osmiumで事前フィルター（国道用）
+    filtered_pbf_path = filter_national_routes_pbf(pbf_path)
+
+    # 国道を自動検出
+    discovered, way_ids_by_ref = discover_national_routes(filtered_pbf_path)
+
+    # 対象の国道を絞り込み
+    if national_route_refs:
+        targets = [r for r in discovered if r["ref"] in national_route_refs]
+        if not targets:
+            logger.warning("指定されたref番号の国道が見つかりません: %s", national_route_refs)
+            return None
+    else:
+        targets = discovered
+
+    logger.info("国道データ生成: %d路線", len(targets))
+
+    # 全way IDを統合
+    all_way_ids: set[int] = set()
+    for r in targets:
+        way_ids = way_ids_by_ref.get(r["ref"], set())
+        all_way_ids.update(way_ids)
+
+    # 全wayを一括抽出（元のPBFから、ノード座標を含む）
+    ways_by_id = extract_all_ways(pbf_path, all_way_ids)
+
+    return targets, way_ids_by_ref, ways_by_id
+
+
+def _process_single_national_route(
+    route_info: dict,
+    way_ids_by_ref: dict[str, set[int]],
+    ways_by_id: dict[int, dict],
+    output_dir: Path,
+) -> tuple[dict, dict] | None:
+    """
+    単一の国道を処理してエントリとGeoJSONのペアを返す
+
+    Returns:
+        (entry, geojson) または None（エラー時）
+    """
+    ref = route_info["ref"]
+    name = route_info["name"]
+    name_en = route_info["name_en"]
+    way_ids = way_ids_by_ref.get(ref, set())
+
+    # メモリ内のwayデータから該当するものを取得
+    ways = get_ways_for_highway(ways_by_id, way_ids)
+
+    logger.debug("%s: %d way IDs, %d ways抽出", name, len(way_ids), len(ways))
+
+    if not ways:
+        logger.warning("wayがないためスキップ: %s", name)
+        return None
+
+    highway_info = {
+        "name": name,
+        "name_en": name_en,
+        "ref": ref,
+    }
+
+    geojson = extract_highway(highway_info, ways)
+
+    coords = get_all_coordinates(geojson)
+    if not coords:
+        logger.warning("座標がないためスキップ: %s", name)
+        return None
+
+    file_size = save_highway(name, geojson, output_dir)
+
+    entry = {
+        "id": name,
+        "name": name,
+        "nameEn": name_en,
+        "ref": ref,
+        "fileSize": file_size,
+        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+    return entry, geojson
+
+
+def assign_national_route_groups(
+    routes_info: list[dict],
+    route_geojsons: dict[str, dict],
+) -> None:
+    """
+    各国道にグループを割り当てる
+
+    Args:
+        routes_info: 国道情報リスト（group属性が追加される）
+        route_geojsons: 国道名 → GeoJSONのマッピング
+    """
+    # 各国道の線分（最近点、最遠点）を計算
+    route_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
+    for name, geojson in route_geojsons.items():
+        coords = get_all_coordinates(geojson)
+        segment = get_extent_segment(coords)
+        if segment:
+            route_segments[name] = segment
+
+    # 中心国道の線分を取得（グループの中心となる国道）
+    core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
+    for ref in get_all_core_national_route_refs():
+        route_name = get_core_national_route_name(ref)
+        if route_name in route_segments:
+            core_segments[route_name] = route_segments[route_name]
+
+    # ref番号からグループ名を取得するヘルパー
+    def get_group_for_core_ref(ref: str) -> str | None:
+        for group_name, ref_list in NATIONAL_ROUTE_GROUPS.items():
+            if ref in ref_list:
+                return group_name
+        return None
+
+    # 各国道にグループを割り当て
+    for entry in routes_info:
+        name = entry["name"]
+        ref = entry["ref"]
+
+        # 中心国道はそのグループ名を使用
+        core_group = get_group_for_core_ref(ref)
+        if core_group:
+            entry["group"] = core_group
+        elif name in route_segments and core_segments:
+            entry["group"] = determine_national_route_group(
+                route_segments[name], core_segments
+            )
+        else:
+            # セグメントがない場合はデフォルト
+            logger.warning("セグメントが見つからないためデフォルトグループ: %s", name)
+            entry["group"] = NATIONAL_ROUTE_GROUP_ORDER[0]
+
+
+def generate_national_routes_index(output_dir: Path, routes_info: list[dict]) -> None:
+    """data/national-roads/index.jsonを生成"""
+    data_dir = output_dir / DATA_DIR
+    national_roads_dir = data_dir / NATIONAL_ROADS_DIR
+
+    index = {
+        "nationalRoutes": routes_info,
+    }
+
+    national_roads_dir.mkdir(parents=True, exist_ok=True)
+    output_path = national_roads_dir / "index.json"
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
+
+    logger.info("保存: %s", output_path)
+
+
+def generate_national_routes_groups(output_dir: Path) -> None:
+    """data/national-roads/group.jsonを生成"""
+    data_dir = output_dir / DATA_DIR
+    national_roads_dir = data_dir / NATIONAL_ROADS_DIR
+
+    groups = []
+    for order, group_name in enumerate(NATIONAL_ROUTE_GROUP_ORDER):
+        groups.append({
+            "name": group_name,
+            "order": order,
+        })
+
+    national_roads_dir.mkdir(parents=True, exist_ok=True)
+    output_path = national_roads_dir / "group.json"
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump({"groups": groups}, f, ensure_ascii=False, separators=(",", ":"))
+
+    logger.info("保存: %s", output_path)
+
+
+def generate_national_roads(
+    output_dir: Path,
+    national_route_refs: list[str] | None = None,
+) -> None:
+    """国道データを生成"""
+    national_roads_dir = output_dir / DATA_DIR / NATIONAL_ROADS_DIR
+
+    osm_data = _prepare_national_route_data(national_route_refs)
+    if osm_data is None:
+        return
+    targets, way_ids_by_ref, ways_by_id = osm_data
+
+    routes_info = []
+    route_geojsons: dict[str, dict] = {}  # グループ計算用にGeoJSONを保持
+
+    for route_info in targets:
+        try:
+            result = _process_single_national_route(
+                route_info, way_ids_by_ref, ways_by_id, national_roads_dir
+            )
+            if result:
+                entry, geojson = result
+                routes_info.append(entry)
+                route_geojsons[entry["name"]] = geojson
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("国道データ抽出エラー: %s - %s", route_info["name"], e)
+
+    # グループを計算
+    logger.info("グループ計算中...")
+    assign_national_route_groups(routes_info, route_geojsons)
+
+    # index.json生成
+    generate_national_routes_index(output_dir, routes_info)
+
+    # group.json生成
+    generate_national_routes_groups(output_dir)
 
 
 if __name__ == "__main__":
