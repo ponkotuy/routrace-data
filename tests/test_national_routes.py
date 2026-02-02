@@ -8,7 +8,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 import pytest
 
-from osm_parser import NationalRouteDiscoverer
+from osm_parser import (
+    NationalRouteDiscoverer,
+    NationalRouteStandaloneWayDiscoverer,
+    _is_valid_national_route_ref,
+)
 from highway_grouping import (
     CORE_NATIONAL_ROUTES,
     NATIONAL_ROUTE_GROUP_ORDER,
@@ -121,3 +125,61 @@ class TestDetermineNationalRouteGroup:
         result = determine_national_route_group(route_segment, core_segments)
         # 最も近い1桁国道を返す
         assert result in ["国道1号", "国道4号", "国道6号"]
+
+
+class TestIsValidNationalRouteRef:
+    """_is_valid_national_route_ref関数のテスト"""
+
+    def test_valid_single_digit(self):
+        """1桁の有効な国道番号"""
+        assert _is_valid_national_route_ref("1") is True
+        assert _is_valid_national_route_ref("9") is True
+
+    def test_valid_double_digit(self):
+        """2桁の有効な国道番号"""
+        assert _is_valid_national_route_ref("10") is True
+        assert _is_valid_national_route_ref("99") is True
+
+    def test_valid_triple_digit(self):
+        """3桁の有効な国道番号"""
+        assert _is_valid_national_route_ref("100") is True
+        assert _is_valid_national_route_ref("197") is True
+        assert _is_valid_national_route_ref("507") is True
+
+    def test_invalid_zero(self):
+        """0は無効"""
+        assert _is_valid_national_route_ref("0") is False
+
+    def test_invalid_over_507(self):
+        """507を超える番号は無効"""
+        assert _is_valid_national_route_ref("508") is False
+        assert _is_valid_national_route_ref("1000") is False
+
+    def test_invalid_empty(self):
+        """空文字は無効"""
+        assert _is_valid_national_route_ref("") is False
+
+    def test_invalid_non_digit(self):
+        """数字以外は無効"""
+        assert _is_valid_national_route_ref("abc") is False
+        assert _is_valid_national_route_ref("1a") is False
+        assert _is_valid_national_route_ref("E1") is False
+
+
+class TestNationalRouteStandaloneWayDiscoverer:
+    """NationalRouteStandaloneWayDiscoverer クラスのテスト"""
+
+    def test_excludes_relation_way_ids(self):
+        """relationで検出済みのway IDは除外される"""
+        relation_way_ids = {100, 200, 300}
+        discoverer = NationalRouteStandaloneWayDiscoverer(relation_way_ids)
+
+        # relation_way_idsが正しく設定されていることを確認
+        assert discoverer.relation_way_ids == relation_way_ids
+        assert 100 in discoverer.relation_way_ids
+        assert 999 not in discoverer.relation_way_ids
+
+    def test_initial_state(self):
+        """初期状態でway_ids_by_refは空"""
+        discoverer = NationalRouteStandaloneWayDiscoverer(set())
+        assert discoverer.way_ids_by_ref == {}

@@ -238,6 +238,22 @@ def ways_to_geojson(ways: list[dict]) -> dict:
     }
 
 
+def _is_valid_national_route_ref(ref: str) -> bool:
+    """
+    有効な日本の国道番号かチェック
+
+    Args:
+        ref: ref番号文字列
+
+    Returns:
+        1〜507の範囲の数字ならTrue
+    """
+    if not ref or not ref.isdigit():
+        return False
+    num = int(ref)
+    return 1 <= num <= 507
+
+
 class NationalRouteDiscoverer(osmium.SimpleHandler):
     """国道のrelationを自動検出するハンドラー"""
 
@@ -262,9 +278,9 @@ class NationalRouteDiscoverer(osmium.SimpleHandler):
         if tags.get("network") != "JP:national":
             return
 
-        # ref番号を取得（数字のみ対象）
+        # ref番号を取得（有効な国道番号のみ対象）
         ref = tags.get("ref", "")
-        if not ref or not ref.isdigit():
+        if not _is_valid_national_route_ref(ref):
             return
 
         # way IDを収集
@@ -281,9 +297,53 @@ class NationalRouteDiscoverer(osmium.SimpleHandler):
                 self.way_ids_by_ref[ref].add(member.ref)
 
 
+class NationalRouteStandaloneWayDiscoverer(osmium.SimpleHandler):
+    """relationに含まれないwayから国道を検出するハンドラー"""
+
+    def __init__(self, relation_way_ids: set[int]):
+        """
+        Args:
+            relation_way_ids: relationで既に検出されたway IDのセット（除外用）
+        """
+        super().__init__()
+        self.relation_way_ids = relation_way_ids
+        # ref番号 -> set of way IDs
+        self.way_ids_by_ref: dict[str, set[int]] = {}
+
+    def way(self, w):
+        """highway=trunk/trunk_link かつ有効なref番号を持つwayを収集"""
+        # relationで既に検出済みのwayはスキップ
+        if w.id in self.relation_way_ids:
+            return
+
+        tags = dict(w.tags)
+
+        # highway=trunk または trunk_link のみ対象
+        highway_type = tags.get("highway", "")
+        if highway_type not in ("trunk", "trunk_link"):
+            return
+
+        # ref タグから国道番号を取得
+        ref = tags.get("ref", "")
+        if not ref:
+            return
+
+        # 複数refの場合（"56;197"等）は分割して処理
+        refs = [r.strip() for r in ref.split(";")]
+        for single_ref in refs:
+            if _is_valid_national_route_ref(single_ref):
+                if single_ref not in self.way_ids_by_ref:
+                    self.way_ids_by_ref[single_ref] = set()
+                self.way_ids_by_ref[single_ref].add(w.id)
+
+
 def discover_national_routes(pbf_path: Path) -> tuple[list[dict], dict[str, set[int]]]:
     """
     PBFから国道を自動検出
+
+    Phase 1: relationから検出（route=road, network=JP:national）
+    Phase 2: wayから検出（highway=trunk/trunk_link, ref=国道番号、relation未検出のみ）
+    Phase 3: 結果をマージ
 
     Args:
         pbf_path: フィルタリング済みPBFファイルパス
@@ -293,14 +353,55 @@ def discover_national_routes(pbf_path: Path) -> tuple[list[dict], dict[str, set[
     """
     logger.info("国道を自動検出中...")
 
-    handler = NationalRouteDiscoverer()
-    handler.apply_file(str(pbf_path))
+    # Phase 1: relationから検出
+    logger.info("Phase 1: relationから国道を検出中...")
+    relation_handler = NationalRouteDiscoverer()
+    relation_handler.apply_file(str(pbf_path))
+
+    relation_routes = len(relation_handler.route_info)
+    relation_ways = sum(len(ids) for ids in relation_handler.way_ids_by_ref.values())
+    logger.info("  relationから検出: %d路線, %d ways", relation_routes, relation_ways)
+
+    # Phase 2: wayから検出（relation検出済みのway IDを除外）
+    logger.info("Phase 2: wayから国道を検出中（relation未検出のみ）...")
+    all_relation_way_ids = set()
+    for way_ids in relation_handler.way_ids_by_ref.values():
+        all_relation_way_ids.update(way_ids)
+
+    way_handler = NationalRouteStandaloneWayDiscoverer(all_relation_way_ids)
+    way_handler.apply_file(str(pbf_path))
+
+    standalone_ways = sum(len(ids) for ids in way_handler.way_ids_by_ref.values())
+    logger.info("  wayから追加検出: %d ways", standalone_ways)
+
+    # Phase 3: 結果をマージ
+    way_ids_by_ref: dict[str, set[int]] = {}
+    route_info: dict[str, dict] = {}
+
+    # relationからの結果をコピー
+    for ref, way_ids in relation_handler.way_ids_by_ref.items():
+        way_ids_by_ref[ref] = set(way_ids)
+        route_info[ref] = relation_handler.route_info[ref]
+
+    # wayからの結果をマージ
+    for ref, way_ids in way_handler.way_ids_by_ref.items():
+        if ref in way_ids_by_ref:
+            # 既存のrefにway IDを追加
+            way_ids_by_ref[ref].update(way_ids)
+        else:
+            # 新しいref（relationには存在しないがwayで見つかった国道）
+            way_ids_by_ref[ref] = set(way_ids)
+            route_info[ref] = {
+                "ref": ref,
+                "name": f"国道{ref}号",
+                "name_en": f"National Route {ref}",
+            }
 
     # 国道情報をリストに変換（ref番号でソート）
     routes = []
-    for ref in sorted(handler.route_info.keys(), key=int):
-        info = handler.route_info[ref]
-        way_count = len(handler.way_ids_by_ref[ref])
+    for ref in sorted(route_info.keys(), key=int):
+        info = route_info[ref]
+        way_count = len(way_ids_by_ref[ref])
         routes.append({
             "ref": info["ref"],
             "name": info["name"],
@@ -308,7 +409,7 @@ def discover_national_routes(pbf_path: Path) -> tuple[list[dict], dict[str, set[
             "way_count": way_count,
         })
 
-    total_ways = sum(len(ids) for ids in handler.way_ids_by_ref.values())
+    total_ways = sum(len(ids) for ids in way_ids_by_ref.values())
     logger.info("検出完了: %d路線, 合計 %d ways", len(routes), total_ways)
 
-    return routes, handler.way_ids_by_ref
+    return routes, way_ids_by_ref
