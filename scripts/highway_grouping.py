@@ -1,30 +1,40 @@
 """高速道路グループ判定と幾何学計算"""
 
-# 1桁国道（グループの中心となる国道）
-CORE_NATIONAL_ROUTES = {
-    "1": "国道1号",
-    "2": "国道2号",
-    "3": "国道3号",
-    "4": "国道4号",
-    "5": "国道5号",
-    "6": "国道6号",
-    "7": "国道7号",
-    "8": "国道8号",
-    "9": "国道9号",
+# 国道グループの定義（グループ名 → 中心国道のref番号リスト）
+NATIONAL_ROUTE_GROUPS = {
+    "東名阪": ["1", "42"],
+    "中国": ["2", "9"],
+    "九州": ["3"],
+    "東北": ["4", "6", "7", "279"],
+    "北海道": ["5", "334"],
+    "北陸": ["8"],
+    "四国": ["11"],
 }
 
 # 国道グループの順序
 NATIONAL_ROUTE_GROUP_ORDER = [
-    "国道1号",
-    "国道2号",
-    "国道3号",
-    "国道4号",
-    "国道5号",
-    "国道6号",
-    "国道7号",
-    "国道8号",
-    "国道9号",
+    "東名阪",
+    "中国",
+    "九州",
+    "東北",
+    "北海道",
+    "北陸",
+    "四国",
 ]
+
+# 中心国道のref番号から国道名を生成するヘルパー
+def get_core_national_route_name(ref: str) -> str:
+    """ref番号から国道名を生成"""
+    return f"国道{ref}号"
+
+
+# 全ての中心国道のref番号を取得
+def get_all_core_national_route_refs() -> set[str]:
+    """全ての中心国道のref番号を取得"""
+    refs = set()
+    for ref_list in NATIONAL_ROUTE_GROUPS.values():
+        refs.update(ref_list)
+    return refs
 
 # 都市高速グループのプレフィックス
 URBAN_EXPRESSWAY_PREFIXES = [
@@ -267,26 +277,30 @@ def determine_national_route_group(
     core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]],
 ) -> str:
     """
-    国道のグループを決定（最も近い1桁国道）
+    国道のグループを決定（最も近い中心国道を持つグループ）
 
     Args:
         route_segment: 対象国道の線分（最近点、最遠点）
-        core_segments: 1桁国道名 → 線分のマッピング
+        core_segments: 中心国道名 → 線分のマッピング
 
     Returns:
-        最も近い1桁国道のグループ名
+        最も近い中心国道を持つグループ名
     """
     min_distance = float("inf")
-    nearest_group = "国道1号"  # デフォルト
+    nearest_group = NATIONAL_ROUTE_GROUP_ORDER[0]  # デフォルト
 
-    # CORE_NATIONAL_ROUTESの順序で処理（同距離の場合はリスト上位を優先）
-    for group_name in CORE_NATIONAL_ROUTES.values():
-        if group_name not in core_segments:
-            continue
-        core_segment = core_segments[group_name]
-        distance = segment_to_segment_distance(route_segment, core_segment)
-        if distance < min_distance:
-            min_distance = distance
-            nearest_group = group_name
+    # グループ順序で処理（同距離の場合はリスト上位を優先）
+    for group_name in NATIONAL_ROUTE_GROUP_ORDER:
+        ref_list = NATIONAL_ROUTE_GROUPS.get(group_name, [])
+        # グループ内の各中心国道との最短距離を計算
+        for ref in ref_list:
+            route_name = get_core_national_route_name(ref)
+            if route_name not in core_segments:
+                continue
+            core_segment = core_segments[route_name]
+            distance = segment_to_segment_distance(route_segment, core_segment)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_group = group_name
 
     return nearest_group

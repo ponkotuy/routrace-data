@@ -14,9 +14,11 @@ from osm_parser import (
     _is_valid_national_route_ref,
 )
 from highway_grouping import (
-    CORE_NATIONAL_ROUTES,
     NATIONAL_ROUTE_GROUP_ORDER,
+    NATIONAL_ROUTE_GROUPS,
     determine_national_route_group,
+    get_all_core_national_route_refs,
+    get_core_national_route_name,
 )
 
 
@@ -42,50 +44,57 @@ class TestNationalRouteDiscoverer:
         assert discoverer._normalize_name("459") == "国道459号"
 
 
-class TestCoreNationalRoutes:
-    """1桁国道定数のテスト"""
+class TestNationalRouteGroups:
+    """国道グループ定数のテスト"""
 
-    def test_core_national_routes_count(self):
-        """1桁国道は9路線"""
-        assert len(CORE_NATIONAL_ROUTES) == 9
+    def test_national_route_groups_count(self):
+        """グループは7つ"""
+        assert len(NATIONAL_ROUTE_GROUPS) == 7
 
-    @pytest.mark.parametrize(
-        "ref,expected_name",
-        [
-            ("1", "国道1号"),
-            ("2", "国道2号"),
-            ("3", "国道3号"),
-            ("4", "国道4号"),
-            ("5", "国道5号"),
-            ("6", "国道6号"),
-            ("7", "国道7号"),
-            ("8", "国道8号"),
-            ("9", "国道9号"),
-        ],
-    )
-    def test_core_national_routes_mapping(self, ref: str, expected_name: str):
-        """1桁国道のマッピングが正しい"""
-        assert CORE_NATIONAL_ROUTES[ref] == expected_name
+    def test_national_route_groups_structure(self):
+        """グループ構造が正しい"""
+        assert NATIONAL_ROUTE_GROUPS["東名阪"] == ["1", "42"]
+        assert NATIONAL_ROUTE_GROUPS["中国"] == ["2", "9"]
+        assert NATIONAL_ROUTE_GROUPS["九州"] == ["3"]
+        assert NATIONAL_ROUTE_GROUPS["東北"] == ["4", "6", "7", "279"]
+        assert NATIONAL_ROUTE_GROUPS["北海道"] == ["5", "334"]
+        assert NATIONAL_ROUTE_GROUPS["北陸"] == ["8"]
+        assert NATIONAL_ROUTE_GROUPS["四国"] == ["11"]
+
+    def test_get_all_core_national_route_refs(self):
+        """全ての中心国道のref番号を取得"""
+        refs = get_all_core_national_route_refs()
+        assert refs == {"1", "2", "3", "4", "5", "6", "7", "8", "9", "11", "42", "279", "334"}
+
+    def test_get_core_national_route_name(self):
+        """ref番号から国道名を生成"""
+        assert get_core_national_route_name("1") == "国道1号"
+        assert get_core_national_route_name("11") == "国道11号"
 
 
 class TestNationalRouteGroupOrder:
     """国道グループ順序のテスト"""
 
     def test_group_order_length(self):
-        """グループ順序に9グループが定義されている"""
-        assert len(NATIONAL_ROUTE_GROUP_ORDER) == 9
+        """グループ順序に7グループが定義されている"""
+        assert len(NATIONAL_ROUTE_GROUP_ORDER) == 7
 
-    def test_group_order_starts_with_route1(self):
-        """最初は国道1号"""
-        assert NATIONAL_ROUTE_GROUP_ORDER[0] == "国道1号"
+    def test_group_order_starts_with_tomeihan(self):
+        """最初は東名阪"""
+        assert NATIONAL_ROUTE_GROUP_ORDER[0] == "東名阪"
 
-    def test_group_order_ends_with_route9(self):
-        """最後は国道9号"""
-        assert NATIONAL_ROUTE_GROUP_ORDER[-1] == "国道9号"
+    def test_group_order_ends_with_shikoku(self):
+        """最後は四国"""
+        assert NATIONAL_ROUTE_GROUP_ORDER[-1] == "四国"
 
-    def test_core_routes_in_group_order(self):
-        """1桁国道がグループ順序に含まれる"""
-        for group_name in CORE_NATIONAL_ROUTES.values():
+    def test_group_order_correct_sequence(self):
+        """グループ順序が正しい"""
+        expected = ["東名阪", "中国", "九州", "東北", "北海道", "北陸", "四国"]
+        assert NATIONAL_ROUTE_GROUP_ORDER == expected
+
+    def test_all_groups_in_group_order(self):
+        """全てのグループがグループ順序に含まれる"""
+        for group_name in NATIONAL_ROUTE_GROUPS:
             assert group_name in NATIONAL_ROUTE_GROUP_ORDER, (
                 f"{group_name} not in NATIONAL_ROUTE_GROUP_ORDER"
             )
@@ -95,36 +104,50 @@ class TestDetermineNationalRouteGroup:
     """determine_national_route_group関数のテスト"""
 
     def test_with_empty_core_segments(self):
-        """1桁国道がない場合はデフォルト（国道1号）"""
+        """中心国道がない場合はデフォルト（東名阪）"""
         route_segment = ((139.0, 35.0), (140.0, 36.0))
         result = determine_national_route_group(route_segment, {})
-        assert result == "国道1号"
+        assert result == "東名阪"
 
-    def test_nearest_core_route(self):
-        """最も近い1桁国道のグループを返す"""
+    def test_nearest_core_route_hokkaido(self):
+        """北海道の国道は北海道グループになる"""
         # 北海道の座標（国道5号に近い）
         route_segment = ((141.0, 43.0), (141.5, 43.5))
-        # 簡易的な1桁国道の線分
+        # 中心国道の線分
         core_segments = {
             "国道1号": ((139.0, 35.0), (138.0, 34.5)),  # 東京付近
             "国道5号": ((141.3, 43.0), (141.0, 42.5)),  # 北海道
         }
         result = determine_national_route_group(route_segment, core_segments)
-        assert result == "国道5号"
+        assert result == "北海道"
 
     def test_nearest_core_route_tokyo_area(self):
-        """東京付近の国道は国道1号グループになる"""
+        """東京付近の国道は東名阪または東北グループになる"""
         # 東京付近の座標
         route_segment = ((139.5, 35.5), (139.8, 35.7))
-        # 簡易的な1桁国道の線分
+        # 中心国道の線分
         core_segments = {
             "国道1号": ((139.7, 35.6), (139.0, 35.0)),  # 東京〜静岡方面
             "国道4号": ((139.8, 35.7), (140.0, 36.5)),  # 東北方面
             "国道6号": ((139.9, 35.8), (140.5, 36.0)),  # 常磐方面
         }
         result = determine_national_route_group(route_segment, core_segments)
-        # 最も近い1桁国道を返す
-        assert result in ["国道1号", "国道4号", "国道6号"]
+        # 最も近い中心国道を持つグループを返す
+        assert result in ["東名阪", "東北"]
+
+    def test_multi_core_route_group(self):
+        """複数の中心国道を持つグループのテスト"""
+        # 山陰地方の座標（国道9号に近い）
+        route_segment = ((133.0, 35.5), (134.0, 35.5))
+        # 中心国道の線分
+        core_segments = {
+            "国道1号": ((139.0, 35.0), (136.0, 35.0)),  # 東京〜大阪
+            "国道2号": ((135.0, 34.7), (132.0, 34.5)),  # 大阪〜広島
+            "国道9号": ((135.5, 35.0), (132.5, 35.5)),  # 京都〜山陰
+        }
+        result = determine_national_route_group(route_segment, core_segments)
+        # 国道2号と9号は両方とも中国グループ
+        assert result == "中国"
 
 
 class TestIsValidNationalRouteRef:

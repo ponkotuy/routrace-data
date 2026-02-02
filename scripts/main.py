@@ -24,14 +24,16 @@ from osm_parser import (
 )
 from highway_grouping import (
     CORE_HIGHWAYS,
-    CORE_NATIONAL_ROUTES,
     GROUP_ORDER,
     NATIONAL_ROUTE_GROUP_ORDER,
+    NATIONAL_ROUTE_GROUPS,
     URBAN_EXPRESSWAY_PREFIXES,
     detect_group,
     determine_general_group,
     determine_national_route_group,
     get_all_coordinates,
+    get_all_core_national_route_refs,
+    get_core_national_route_name,
     get_extent_segment,
 )
 
@@ -679,20 +681,29 @@ def assign_national_route_groups(
         if segment:
             route_segments[name] = segment
 
-    # 1桁国道の線分を取得（グループの中心となる国道）
+    # 中心国道の線分を取得（グループの中心となる国道）
     core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
-    for ref, group_name in CORE_NATIONAL_ROUTES.items():
-        if group_name in route_segments:
-            core_segments[group_name] = route_segments[group_name]
+    for ref in get_all_core_national_route_refs():
+        route_name = get_core_national_route_name(ref)
+        if route_name in route_segments:
+            core_segments[route_name] = route_segments[route_name]
+
+    # ref番号からグループ名を取得するヘルパー
+    def get_group_for_core_ref(ref: str) -> str | None:
+        for group_name, ref_list in NATIONAL_ROUTE_GROUPS.items():
+            if ref in ref_list:
+                return group_name
+        return None
 
     # 各国道にグループを割り当て
     for entry in routes_info:
         name = entry["name"]
         ref = entry["ref"]
 
-        # 1桁国道は自分自身がグループ
-        if ref in CORE_NATIONAL_ROUTES:
-            entry["group"] = CORE_NATIONAL_ROUTES[ref]
+        # 中心国道はそのグループ名を使用
+        core_group = get_group_for_core_ref(ref)
+        if core_group:
+            entry["group"] = core_group
         elif name in route_segments and core_segments:
             entry["group"] = determine_national_route_group(
                 route_segments[name], core_segments
@@ -700,7 +711,7 @@ def assign_national_route_groups(
         else:
             # セグメントがない場合はデフォルト
             logger.warning("セグメントが見つからないためデフォルトグループ: %s", name)
-            entry["group"] = "国道1号"
+            entry["group"] = NATIONAL_ROUTE_GROUP_ORDER[0]
 
 
 def generate_national_routes_index(output_dir: Path, routes_info: list[dict]) -> None:
