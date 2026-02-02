@@ -346,9 +346,9 @@ class NationalRouteStandaloneWayDiscoverer(osmium.SimpleHandler):
 
         tags = dict(w.tags)
 
-        # highway=trunk または trunk_link のみ対象
+        # highway=trunkのみ対象(trunk_linkを除外)
         highway_type = tags.get("highway", "")
-        if highway_type not in ("trunk", "trunk_link"):
+        if highway_type != "trunk":
             return
 
         # ref タグから国道番号を取得
