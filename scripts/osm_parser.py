@@ -102,6 +102,10 @@ class BulkWayCollector(osmium.SimpleHandler):
 
         tags = dict(w.tags)
 
+        # access=no のwayは除外（実際に通行できない区間）
+        if tags.get("access") == "no":
+            return
+
         # ノード座標を取得
         try:
             coordinates = [
