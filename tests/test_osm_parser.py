@@ -59,6 +59,7 @@ class TestHighwayDiscoverer:
             ("第二神明道路", "第二神明道路"),
             ("第二神明北線", "第二神明北線"),
             ("播但連絡道路", "播但連絡道路"),  # 「連絡道路」を含むが優先パターン
+            ("山陰自動車道:浜田バイパス", "山陰自動車道"),  # コロン以降を除去
         ],
     )
     def test_extract_base_name(self, name: str, expected: str):

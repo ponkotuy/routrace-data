@@ -37,8 +37,10 @@ def _extract_highway_base_name(name: str) -> str | None:
     if not any(p in name for p in HIGHWAY_PATTERNS):
         return None
 
+    # コロン以降を除去（例: 山陰自動車道:浜田バイパス → 山陰自動車道）
+    base_name = re.sub(r':.*$', '', name)
     # 括弧以降を除去
-    base_name = re.sub(r'[（(].*$', '', name)
+    base_name = re.sub(r'[（(].*$', '', base_name)
     # 方向を除去
     base_name = re.sub(r'(上り|下り|内回り|外回り|東行き|西行き|北行き|南行き)$', '', base_name)
     base_name = base_name.strip()
