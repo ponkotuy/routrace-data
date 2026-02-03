@@ -25,6 +25,7 @@ from osm_parser import (
 from highway_grouping import (
     CORE_HIGHWAYS,
     GROUP_ORDER,
+    HIGHWAY_GROUPS,
     NATIONAL_ROUTE_GROUP_ORDER,
     NATIONAL_ROUTE_GROUPS,
     URBAN_EXPRESSWAY_PREFIXES,
@@ -32,6 +33,7 @@ from highway_grouping import (
     determine_general_group,
     determine_national_route_group,
     get_all_coordinates,
+    get_all_core_highway_names,
     get_all_core_national_route_refs,
     get_core_national_route_name,
     get_extent_segment,
@@ -463,7 +465,7 @@ def assign_groups(
     # 中心高速道路の線分を取得
     # entry_idは "name" または "name_ref" の形式なので、nameで始まるものを探す
     core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {}
-    for core_name in CORE_HIGHWAYS:
+    for core_name in get_all_core_highway_names():
         # まず名前そのままで探す（分割されていない場合）
         if core_name in highway_segments:
             core_segments[core_name] = highway_segments[core_name]

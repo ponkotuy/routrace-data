@@ -53,18 +53,23 @@ URBAN_EXPRESSWAY_ALIASES = {
     "東京高速道路": "首都高速",  # 東京高速道路KK線
 }
 
-# 中心高速道路とグループ名のマッピング
+# 高速道路グループの定義（グループ名 → 中心高速道路名リスト）
+HIGHWAY_GROUPS = {
+    "東名": ["東名高速道路"],
+    "名神": ["名神高速道路"],
+    "中国": ["中国自動車道"],
+    "四国": ["高松自動車道", "高知自動車道"],
+    "九州": ["九州自動車道"],
+    "千葉": ["京葉道路"],
+    "北陸": ["北陸自動車道"],
+    "関越": ["関越自動車道"],
+    "東北": ["東北自動車道"],
+    "北海道": ["道央自動車道"],
+}
+
+# 後方互換性のための中心高速道路→グループ名マッピング（自動生成）
 CORE_HIGHWAYS = {
-    "東名高速道路": "東名",
-    "名神高速道路": "名神",
-    "中国自動車道": "中国",
-    "高松自動車道": "四国",
-    "九州自動車道": "九州",
-    "京葉道路": "千葉",
-    "北陸自動車道": "北陸",
-    "関越自動車道": "関越",
-    "東北自動車道": "東北",
-    "道央自動車道": "北海道",
+    name: group for group, names in HIGHWAY_GROUPS.items() for name in names
 }
 
 # グループの順序（仕様書に従う）
@@ -242,32 +247,58 @@ def segment_to_segment_distance(
     return min(distances) ** 0.5
 
 
+# 一般高速グループの順序（都市高速を除いたグループのみ）
+GENERAL_GROUP_ORDER = [
+    "東名",
+    "名神",
+    "中国",
+    "四国",
+    "九州",
+    "千葉",
+    "北陸",
+    "関越",
+    "東北",
+    "北海道",
+]
+
+
+def get_all_core_highway_names() -> set[str]:
+    """全ての中心高速道路名を取得"""
+    names = set()
+    for name_list in HIGHWAY_GROUPS.values():
+        names.update(name_list)
+    return names
+
+
 def determine_general_group(
     highway_segment: tuple[tuple[float, float], tuple[float, float]],
     core_segments: dict[str, tuple[tuple[float, float], tuple[float, float]]],
 ) -> str:
     """
-    一般高速道路のグループを決定
+    一般高速道路のグループを決定（最も近い中心高速道路を持つグループ）
 
     Args:
         highway_segment: 対象高速道路の線分（最近点、最遠点）
         core_segments: 中心高速道路名 → 線分のマッピング
 
     Returns:
-        最も近い中心高速道路のグループ名
+        最も近い中心高速道路を持つグループ名
     """
     min_distance = float("inf")
-    nearest_group = "東名"  # デフォルト
+    nearest_group = GENERAL_GROUP_ORDER[0]  # デフォルト
 
-    # CORE_HIGHWAYSの順序で処理（同距離の場合はリスト上位を優先）
-    for highway_name, group_name in CORE_HIGHWAYS.items():
-        if highway_name not in core_segments:
-            continue
-        core_segment = core_segments[highway_name]
-        distance = segment_to_segment_distance(highway_segment, core_segment)
-        if distance < min_distance:
-            min_distance = distance
-            nearest_group = group_name
+    # グループ順序で処理（同距離の場合はリスト上位を優先）
+    for group_name in GENERAL_GROUP_ORDER:
+        name_list = HIGHWAY_GROUPS.get(group_name, [])
+        # グループ内の各中心高速道路との最短距離を計算
+        for highway_name in name_list:
+            if highway_name not in core_segments:
+                continue
+            core_segment = core_segments[highway_name]
+            distance = segment_to_segment_distance(highway_segment, core_segment)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_group = group_name
 
     return nearest_group
 
