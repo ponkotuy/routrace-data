@@ -25,7 +25,6 @@ from osm_parser import (
 from highway_grouping import (
     CORE_HIGHWAYS,
     GROUP_ORDER,
-    HIGHWAY_GROUPS,
     NATIONAL_ROUTE_GROUP_ORDER,
     NATIONAL_ROUTE_GROUPS,
     URBAN_EXPRESSWAY_PREFIXES,
