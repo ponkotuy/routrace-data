@@ -6,8 +6,14 @@ on:
     types: [completed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      refresh_osm_data:
+        description: 'OSMデータを再取得する'
+        type: boolean
+        default: false
 
 permissions:
+  actions: write
   contents: read
   pages: write
   id-token: write
@@ -35,13 +41,20 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Delete OSM cache
+        if: ${{ inputs.refresh_osm_data == true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh cache delete osm-japan-pbf --repo ${{ github.repository }} || true
+
       - name: Cache OSM data
         uses: actions/cache@v4
         with:
           path: |
             cache/japan-latest.osm.pbf
             cache/japan-highways.osm.pbf
-          key: osm-japan-pbf-v3
+          key: osm-japan-pbf
 
       - name: Generate data
         run: uv run poe generate
