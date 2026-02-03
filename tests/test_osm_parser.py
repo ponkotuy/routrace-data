@@ -24,6 +24,8 @@ class TestHighwayPatterns:
             "東北自動車道",
             "京葉道路",  # 「高速」「自動車道」を含まないが抽出対象
             "東京湾アクアライン",  # 「高速」「自動車道」を含まないが抽出対象
+            "第二神明道路",  # 「高速」「自動車道」を含まないが抽出対象
+            "播但連絡道路",  # 「連絡道路」を含むが抽出対象
         ],
     )
     def test_highway_patterns_match(self, name: str):
@@ -54,6 +56,8 @@ class TestHighwayDiscoverer:
             ("京葉道路", "京葉道路"),
             ("北関東自動車道東行き", "北関東自動車道"),
             ("北関東自動車道西行き", "北関東自動車道"),
+            ("第二神明道路", "第二神明道路"),
+            ("播但連絡道路", "播但連絡道路"),  # 「連絡道路」を含むが優先パターン
         ],
     )
     def test_extract_base_name(self, name: str, expected: str):

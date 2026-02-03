@@ -9,10 +9,41 @@ import osmium
 logger = logging.getLogger(__name__)
 
 # 高速道路として認識する名前パターン
-HIGHWAY_PATTERNS = ['高速', '自動車道', '京葉道路', 'アクアライン', '仙台東部道', '仙台南部道', '仙台北部道']
+HIGHWAY_PATTERNS = ['高速', '自動車道', '京葉道路', 'アクアライン', '仙台東部道', '仙台南部道', '仙台北部道', '第二神明道路', '播但連絡道路']
 
 # 除外パターン（高架橋、入口、出口などは除外）
 EXCLUDE_PATTERNS = ['高架橋', '入口', '出口', '新設工事', '高架路', '連絡道路']
+
+# 除外パターンより優先するパターン（完全な道路名）
+PRIORITY_PATTERNS = ['播但連絡道路']
+
+
+def _extract_highway_base_name(name: str) -> str | None:
+    """名前から基本名を抽出（括弧や方向を除去）"""
+    # 優先パターンにマッチする場合は除外パターンをスキップ
+    is_priority = any(p in name for p in PRIORITY_PATTERNS)
+
+    # 除外パターンをチェック（優先パターン以外）
+    if not is_priority:
+        for pattern in EXCLUDE_PATTERNS:
+            if pattern in name:
+                return None
+
+    # 複合路線名を除外（例: 首都高速川口線-中央環状線）
+    if '線-' in name:
+        return None
+
+    # 高速道路パターンをチェック
+    if not any(p in name for p in HIGHWAY_PATTERNS):
+        return None
+
+    # 括弧以降を除去
+    base_name = re.sub(r'[（(].*$', '', name)
+    # 方向を除去
+    base_name = re.sub(r'(上り|下り|内回り|外回り|東行き|西行き|北行き|南行き)$', '', base_name)
+    base_name = base_name.strip()
+
+    return base_name if base_name else None
 
 
 class HighwayDiscoverer(osmium.SimpleHandler):
@@ -27,26 +58,7 @@ class HighwayDiscoverer(osmium.SimpleHandler):
 
     def _extract_base_name(self, name: str) -> str | None:
         """名前から基本名を抽出（括弧や方向を除去）"""
-        # 除外パターンをチェック
-        for pattern in EXCLUDE_PATTERNS:
-            if pattern in name:
-                return None
-
-        # 複合路線名を除外（例: 首都高速川口線-中央環状線）
-        if '線-' in name:
-            return None
-
-        # 高速道路パターンをチェック
-        if not any(p in name for p in HIGHWAY_PATTERNS):
-            return None
-
-        # 括弧以降を除去
-        base_name = re.sub(r'[（(].*$', '', name)
-        # 方向を除去
-        base_name = re.sub(r'(上り|下り|内回り|外回り|東行き|西行き|北行き|南行き)$', '', base_name)
-        base_name = base_name.strip()
-
-        return base_name if base_name else None
+        return _extract_highway_base_name(name)
 
     def relation(self, r):
         """route=roadのrelationから高速道路のway IDを収集"""
@@ -101,26 +113,7 @@ class HighwayStandaloneWayDiscoverer(osmium.SimpleHandler):
 
     def _extract_base_name(self, name: str) -> str | None:
         """名前から基本名を抽出（括弧や方向を除去）"""
-        # 除外パターンをチェック
-        for pattern in EXCLUDE_PATTERNS:
-            if pattern in name:
-                return None
-
-        # 複合路線名を除外（例: 首都高速川口線-中央環状線）
-        if '線-' in name:
-            return None
-
-        # 高速道路パターンをチェック
-        if not any(p in name for p in HIGHWAY_PATTERNS):
-            return None
-
-        # 括弧以降を除去
-        base_name = re.sub(r'[（(].*$', '', name)
-        # 方向を除去
-        base_name = re.sub(r'(上り|下り|内回り|外回り|東行き|西行き|北行き|南行き)$', '', base_name)
-        base_name = base_name.strip()
-
-        return base_name if base_name else None
+        return _extract_highway_base_name(name)
 
     def way(self, w):
         """highway=motorway かつ高速道路名を持つwayを収集"""
