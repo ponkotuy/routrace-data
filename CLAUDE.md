@@ -67,6 +67,11 @@ data/
     └── {name}.json     # Individual highway GeoJSON files
 ```
 
+## Workflow
+
+- コード修正後は必ず `uv run poe lint` を実行してlintチェックを行う
+- commitはユーザーの確認・承認を得てから実行する（勝手にcommitしない）
+
 ## Notes
 
 - The `overpass.py` module is legacy code (replaced by osmium/PBF approach)
