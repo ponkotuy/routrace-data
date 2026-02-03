@@ -122,10 +122,10 @@ class TestShouldSplitByRef:
         # E20と4（国道4号）があっても、有効なのはE20のみなので分割しない
         assert should_split_by_ref({"E20": [], "4": []}, "中央自動車道") is False
 
-    def test_national_route_refs_valid_for_urban_expressway(self):
-        """都市高速: 数字のみのrefも有効（路線番号）"""
-        # 首都高速は1号、2号など数字のみのrefを使用
-        assert should_split_by_ref({"1": [], "2": []}, "首都高速1号上野線") is True
+    def test_urban_expressway_never_splits(self):
+        """都市高速: refに関わらず分割しない"""
+        # 首都高速は複数refがあっても分割しない
+        assert should_split_by_ref({"1": [], "2": []}, "首都高速1号上野線") is False
 
     def test_mixed_refs_for_general_highway(self):
         """一般高速: 複数の高速道路refがあれば分割"""

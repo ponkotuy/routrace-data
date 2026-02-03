@@ -46,11 +46,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def normalize_ref(ref: str) -> str:
+    """
+    refを正規化する
+
+    - 複合ref（E4;E13等）は最初の部分のみ使用
+    - ハイフン以降を削除（阪神高速の「3-1」→「3」など）
+    """
+    if not ref:
+        return ""
+    primary = ref.split(";")[0].strip()
+    return primary.split("-")[0].strip()
+
+
 def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
     """
     wayをrefでグループ化する
 
     複合ref（E4;E13等）は最初の部分のみ使用。
+    ハイフン以降は削除（阪神高速の「3-1」→「3」など）。
     refなしwayは最寄りのrefありwayのグループに統合。
     """
 
@@ -60,7 +74,7 @@ def group_ways_by_ref(ways: list[dict]) -> dict[str, list[dict]]:
 
     for way in ways:
         ref = way.get("tags", {}).get("ref", "")
-        primary_ref = ref.split(";")[0].strip() if ref else ""
+        primary_ref = normalize_ref(ref)
 
         if primary_ref:
             if primary_ref not in grouped:
@@ -112,26 +126,19 @@ def should_split_by_ref(grouped_ways: dict[str, list[dict]], name: str) -> bool:
     分割が必要か判定。2つ以上の異なる非空の高速道路refがある場合のみ分割。
 
     一般高速道路の場合、数字のみのref（国道）は高速道路refとしてカウントしない。
-    都市高速の場合は数字のみのrefも有効（路線番号として使用）。
-    福岡高速・北九州高速の場合は分割しない（名前が同じなら同じ高速道路として扱う）。
+    都市高速の場合は分割しない（refが不正確なため）。
     """
     group = detect_group(name)
 
-    # 福岡高速・北九州高速は分割しない
-    if group in ("福岡高速", "北九州高速"):
+    # 都市高速は分割しない
+    if group is not None:
         return False
 
-    is_urban = group is not None
-
-    if is_urban:
-        # 都市高速: 全ての非空refを有効とする
-        valid_refs = [ref for ref in grouped_ways.keys() if ref]
-    else:
-        # 一般高速: 数字のみのref（国道）は除外
-        valid_refs = [
-            ref for ref in grouped_ways.keys()
-            if ref and not is_national_route_ref(ref)
-        ]
+    # 一般高速: 数字のみのref（国道）は除外
+    valid_refs = [
+        ref for ref in grouped_ways.keys()
+        if ref and not is_national_route_ref(ref)
+    ]
     return len(valid_refs) > 1
 
 
