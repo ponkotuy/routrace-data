@@ -113,12 +113,12 @@ def should_split_by_ref(grouped_ways: dict[str, list[dict]], name: str) -> bool:
 
     一般高速道路の場合、数字のみのref（国道）は高速道路refとしてカウントしない。
     都市高速の場合は数字のみのrefも有効（路線番号として使用）。
-    福岡高速の場合は分割しない（名前が同じなら同じ高速道路として扱う）。
+    福岡高速・北九州高速の場合は分割しない（名前が同じなら同じ高速道路として扱う）。
     """
     group = detect_group(name)
 
-    # 福岡高速は分割しない
-    if group == "福岡高速":
+    # 福岡高速・北九州高速は分割しない
+    if group in ("福岡高速", "北九州高速"):
         return False
 
     is_urban = group is not None
