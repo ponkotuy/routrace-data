@@ -151,16 +151,7 @@ def create_highway_entry(
 ) -> dict | None:
     """
     高速道路エントリを作成しGeoJSONを保存
-
-    一般高速道路で数字のみのref（国道）の場合はスキップする。
-    都市高速の場合は数字のみのrefも有効。
     """
-    # 一般高速道路で数字のみのref（国道）はスキップ
-    is_urban = detect_group(name) is not None
-    if ref and not is_urban and is_national_route_ref(ref):
-        logger.info("国道refのためスキップ: %s (ref=%s)", name, ref)
-        return None
-
     # refありならid末尾に付与
     entry_id = f"{name}_{ref}" if ref else name
 
