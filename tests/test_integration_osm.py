@@ -48,7 +48,7 @@ class TestDiscoverHighwaysIntegration:
 
     def test_highway_has_required_fields(self, gotemba_highways):
         """検出された高速道路が必須フィールドを持つこと"""
-        highways, way_ids_by_name = gotemba_highways
+        highways, _ = gotemba_highways
 
         assert len(highways) > 0
         for highway in highways:
@@ -72,7 +72,7 @@ class TestDiscoverNationalRoutesIntegration:
 
     def test_national_route_has_required_fields(self, gotemba_routes):
         """検出された国道が必須フィールドを持つこと"""
-        routes, way_ids_by_ref = gotemba_routes
+        routes, _ = gotemba_routes
 
         assert len(routes) > 0
         for route in routes:
@@ -84,7 +84,7 @@ class TestDiscoverNationalRoutesIntegration:
 
     def test_national_route_name_format(self, gotemba_routes):
         """国道の名前が「国道X号」形式であること"""
-        routes, way_ids_by_ref = gotemba_routes
+        routes, _ = gotemba_routes
 
         for route in routes:
             assert route["name"].startswith("国道")
@@ -99,7 +99,7 @@ class TestGeoJsonOutputIntegration:
     def test_highway_geojson_output(self, gotemba_highways, gotemba_pbf_path: Path, tmp_path: Path):
         """高速道路のGeoJSON出力が正しいこと"""
         # 高速道路を検出
-        highways, way_ids_by_name = gotemba_highways
+        _, way_ids_by_name = gotemba_highways
         assert "東名高速道路" in way_ids_by_name
 
         # wayデータを抽出
@@ -136,7 +136,7 @@ class TestGeoJsonOutputIntegration:
     ):
         """国道のGeoJSON出力が正しいこと"""
         # 国道を検出
-        routes, way_ids_by_ref = gotemba_routes
+        _, way_ids_by_ref = gotemba_routes
 
         # 246号が存在することを確認
         assert "246" in way_ids_by_ref

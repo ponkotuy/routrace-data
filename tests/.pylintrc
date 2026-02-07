@@ -17,7 +17,5 @@ disable=
     protected-access,
     # pytestマーカー等の未使用import
     unused-import,
-    # アンパック時の未使用変数
-    unused-variable,
     # pytestフィクスチャの再定義
     redefined-outer-name,
