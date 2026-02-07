@@ -70,6 +70,7 @@ data/
 ## Workflow
 
 - コード修正後は必ず `uv run poe lint` を実行してlintチェックを行う
+- 50行以上の変更時は `uv run vulture scripts/` で未使用コードをチェックする
 - commitはユーザーの確認・承認を得てから実行する（勝手にcommitしない）
 
 ## Notes
