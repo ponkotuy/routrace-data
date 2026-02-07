@@ -13,27 +13,21 @@ from simplify import get_coordinate_count, simplify_geojson
 class TestSimplifyGeojson:
     """simplify_geojson関数のテスト"""
 
-    def test_simplify_linestring(self):
+    def test_simplify_linestring(self, feature_collection_factory):
         """LineStringが簡略化される"""
         # 直線上の点は間引かれる
-        geojson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "LineString",
-                        "coordinates": [
-                            [0, 0],
-                            [0.0001, 0.0001],  # 直線上の中間点
-                            [0.0002, 0.0002],
-                            [1, 1],
-                        ],
-                    },
-                    "properties": {"name": "test"},
-                }
-            ],
-        }
+        geojson = feature_collection_factory(
+            geometry={
+                "type": "LineString",
+                "coordinates": [
+                    [0, 0],
+                    [0.0001, 0.0001],  # 直線上の中間点
+                    [0.0002, 0.0002],
+                    [1, 1],
+                ],
+            },
+            feature_properties={"name": "test"},
+        )
 
         result = simplify_geojson(geojson, tolerance=0.001)
 
@@ -46,24 +40,17 @@ class TestSimplifyGeojson:
         assert tuple(coords[0]) == (0, 0)
         assert tuple(coords[-1]) == (1, 1)
 
-    def test_simplify_multilinestring(self):
+    def test_simplify_multilinestring(self, feature_collection_factory):
         """MultiLineStringが簡略化される"""
-        geojson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "MultiLineString",
-                        "coordinates": [
-                            [[0, 0], [0.0001, 0], [1, 0]],
-                            [[0, 1], [0.0001, 1], [1, 1]],
-                        ],
-                    },
-                    "properties": {},
-                }
-            ],
-        }
+        geojson = feature_collection_factory(
+            geometry={
+                "type": "MultiLineString",
+                "coordinates": [
+                    [[0, 0], [0.0001, 0], [1, 0]],
+                    [[0, 1], [0.0001, 1], [1, 1]],
+                ],
+            },
+        )
 
         result = simplify_geojson(geojson, tolerance=0.001)
 
