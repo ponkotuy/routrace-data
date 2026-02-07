@@ -16,7 +16,6 @@ from highway_grouping import (
     distance_squared,
     get_all_coordinates,
     get_extent_segment,
-    point_to_segment_distance_squared,
     segment_to_segment_distance,
     segments_intersect,
 )
@@ -64,7 +63,7 @@ class TestGetExtentSegment:
         ]
         result = get_extent_segment(coords, center=TOKYO_STATION)
         assert result is not None
-        nearest, farthest = result
+        nearest, _ = result
         # 東京駅に最も近い点は(139.7, 35.7)
         assert nearest == (139.7, 35.7)
 
