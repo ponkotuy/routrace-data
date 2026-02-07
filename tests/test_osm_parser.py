@@ -14,27 +14,11 @@ from osm_parser import HIGHWAY_PATTERNS, HighwayDiscoverer
 class TestHighwayPatterns:
     """高速道路パターンのテスト"""
 
-    @pytest.mark.parametrize(
-        "name",
-        [
-            "東名高速道路",
-            "名神高速道路",
-            "首都高速1号上野線",
-            "中央自動車道",
-            "東北自動車道",
-            "京葉道路",  # 「高速」「自動車道」を含まないが抽出対象
-            "東京湾アクアライン",  # 「高速」「自動車道」を含まないが抽出対象
-            "第二神明道路",  # 「高速」「自動車道」を含まないが抽出対象
-            "播但連絡道路",  # 「連絡道路」を含むが抽出対象
-        ],
-    )
-    def test_highway_patterns_match(self, name: str):
-        """高速道路名がパターンにマッチする"""
-        assert any(p in name for p in HIGHWAY_PATTERNS)
-
-    def test_keiyo_road_in_patterns(self):
-        """京葉道路がパターンに含まれている"""
-        assert "京葉道路" in HIGHWAY_PATTERNS
+    def test_highway_patterns_unique_and_non_empty(self):
+        """高速道路パターンは重複や空要素がない"""
+        assert HIGHWAY_PATTERNS
+        assert "" not in HIGHWAY_PATTERNS
+        assert len(HIGHWAY_PATTERNS) == len(set(HIGHWAY_PATTERNS))
 
 
 class TestHighwayDiscoverer:

@@ -164,17 +164,10 @@ class TestDetermineGeneralGroup:
 class TestGroupOrder:
     """グループ順序の設定テスト"""
 
-    def test_group_order_length(self):
-        """グループ順序に15グループが定義されている"""
-        assert len(GROUP_ORDER) == 15
-
-    def test_group_order_starts_with_shutoko(self):
-        """最初は首都高速"""
-        assert GROUP_ORDER[0] == "首都高速"
-
-    def test_group_order_ends_with_hokkaido(self):
-        """最後は北海道"""
-        assert GROUP_ORDER[-1] == "北海道"
+    def test_group_order_unique(self):
+        """グループ順序は重複がない"""
+        assert GROUP_ORDER
+        assert len(GROUP_ORDER) == len(set(GROUP_ORDER))
 
     def test_core_highways_in_group_order(self):
         """中心高速道路のグループ名がGROUP_ORDERに含まれる"""

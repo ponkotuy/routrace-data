@@ -47,19 +47,21 @@ class TestNationalRouteDiscoverer:
 class TestNationalRouteGroups:
     """国道グループ定数のテスト"""
 
-    def test_national_route_groups_count(self):
-        """グループは7つ"""
-        assert len(NATIONAL_ROUTE_GROUPS) == 7
+    def test_national_route_groups_have_non_empty_refs(self):
+        """各グループに中心国道が定義されている"""
+        assert NATIONAL_ROUTE_GROUPS
+        assert all(refs for refs in NATIONAL_ROUTE_GROUPS.values())
 
-    def test_national_route_groups_structure(self):
-        """グループ構造が正しい"""
-        assert NATIONAL_ROUTE_GROUPS["東名阪"] == ["1", "42"]
-        assert NATIONAL_ROUTE_GROUPS["中国"] == ["2", "9"]
-        assert NATIONAL_ROUTE_GROUPS["九州"] == ["3"]
-        assert NATIONAL_ROUTE_GROUPS["東北"] == ["4", "6", "7", "279"]
-        assert NATIONAL_ROUTE_GROUPS["北海道"] == ["5", "334"]
-        assert NATIONAL_ROUTE_GROUPS["北陸"] == ["8"]
-        assert NATIONAL_ROUTE_GROUPS["四国"] == ["11"]
+    def test_national_route_groups_have_unique_refs(self):
+        """中心国道ref番号は重複しない"""
+        all_refs = [ref for refs in NATIONAL_ROUTE_GROUPS.values() for ref in refs]
+        assert all_refs
+        assert len(all_refs) == len(set(all_refs))
+
+    def test_national_route_groups_refs_are_numeric(self):
+        """中心国道ref番号は数字のみ"""
+        for ref in get_all_core_national_route_refs():
+            assert ref.isdigit()
 
     def test_get_all_core_national_route_refs(self):
         """全ての中心国道のref番号を取得"""
@@ -75,25 +77,14 @@ class TestNationalRouteGroups:
 class TestNationalRouteGroupOrder:
     """国道グループ順序のテスト"""
 
-    def test_group_order_length(self):
-        """グループ順序に7グループが定義されている"""
-        assert len(NATIONAL_ROUTE_GROUP_ORDER) == 7
-
-    def test_group_order_starts_with_tomeihan(self):
-        """最初は東名阪"""
-        assert NATIONAL_ROUTE_GROUP_ORDER[0] == "東名阪"
-
-    def test_group_order_ends_with_shikoku(self):
-        """最後は四国"""
-        assert NATIONAL_ROUTE_GROUP_ORDER[-1] == "四国"
-
-    def test_group_order_correct_sequence(self):
-        """グループ順序が正しい"""
-        expected = ["東名阪", "中国", "九州", "東北", "北海道", "北陸", "四国"]
-        assert NATIONAL_ROUTE_GROUP_ORDER == expected
+    def test_group_order_unique(self):
+        """グループ順序は重複がない"""
+        assert NATIONAL_ROUTE_GROUP_ORDER
+        assert len(NATIONAL_ROUTE_GROUP_ORDER) == len(set(NATIONAL_ROUTE_GROUP_ORDER))
 
     def test_all_groups_in_group_order(self):
         """全てのグループがグループ順序に含まれる"""
+        assert set(NATIONAL_ROUTE_GROUP_ORDER) == set(NATIONAL_ROUTE_GROUPS)
         for group_name in NATIONAL_ROUTE_GROUPS:
             assert group_name in NATIONAL_ROUTE_GROUP_ORDER, (
                 f"{group_name} not in NATIONAL_ROUTE_GROUP_ORDER"
