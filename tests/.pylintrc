@@ -1,0 +1,23 @@
+[MAIN]
+init-hook='import sys; sys.path.insert(0, "scripts")'
+
+[MESSAGES CONTROL]
+# Tests用: pytest仕様やsys.path.insert由来の警告を許容
+disable=
+    # sys.path.insert後のimport順序
+    wrong-import-position,
+    wrong-import-order,
+    # テスト内でのimport
+    import-outside-toplevel,
+    # 明示的な比較 (== {} など) を許容
+    use-implicit-booleaness-not-comparison,
+    # テストクラスは1メソッドでもOK
+    too-few-public-methods,
+    # テストでの_メソッドアクセス
+    protected-access,
+    # pytestマーカー等の未使用import
+    unused-import,
+    # アンパック時の未使用変数
+    unused-variable,
+    # pytestフィクスチャの再定義
+    redefined-outer-name,

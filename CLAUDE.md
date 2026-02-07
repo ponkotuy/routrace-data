@@ -70,8 +70,8 @@ data/
 ## Workflow
 
 - コード修正後は必ず `uv run pytest tests/ -v` でテストを実行する
-- コード修正後は必ず `uv run poe lint` を実行してlintチェックを行う
-- 50行以上の変更時は `uv run vulture scripts/` で未使用コードをチェックする
+- コード修正後は必ず `uv run poe lint` を実行してlintチェックを行う（scripts/とtests/両方）
+- 50行以上の変更時は `uv run poe vulture` で未使用コードをチェックする
 - commitはユーザーの確認・承認を得てから実行する（勝手にcommitしない）
 
 ## Notes
