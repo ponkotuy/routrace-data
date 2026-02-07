@@ -43,5 +43,5 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run pylint
-        run: uv run pylint scripts/
+      - name: Run lint
+        run: uv run poe lint
