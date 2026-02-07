@@ -40,7 +40,7 @@ class TestDiscoverHighwaysIntegration:
 
     def test_discovers_tomei_expressway(self, gotemba_highways):
         """東名高速道路が検出されること"""
-        _, way_ids_by_name = gotemba_highways
+        highways, _ = gotemba_highways
 
         # 東名高速道路が含まれていることを確認
         highway_names = [h["name"] for h in highways]
@@ -64,7 +64,7 @@ class TestDiscoverNationalRoutesIntegration:
 
     def test_discovers_national_routes(self, gotemba_routes):
         """国道138号または246号が検出されること"""
-        _, way_ids_by_ref = gotemba_routes
+        routes, _ = gotemba_routes
 
         # 国道138号または246号のいずれかが含まれていることを確認
         route_refs = [r["ref"] for r in routes]

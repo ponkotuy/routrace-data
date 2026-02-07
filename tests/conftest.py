@@ -7,7 +7,7 @@ import pytest
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def gotemba_pbf_path() -> Path:
     """テスト用PBFファイル（御殿場IC周辺）へのパスを提供"""
     path = FIXTURES_DIR / "gotemba-area.osm.pbf"
